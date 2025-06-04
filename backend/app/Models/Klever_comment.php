@@ -17,4 +17,3 @@ class Klever_comment extends Model
         return $this->belongsTo(Farm::class);
     }
 }
-

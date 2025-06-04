@@ -77,8 +77,3 @@ class FarmDisplayController extends Controller
     
 
 }
-
-
-
-
- 

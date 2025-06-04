@@ -15,6 +15,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<boolean>
+  signUp: (email: string, password: string, name: string, phone: string) => Promise<{ error?: string }>
   logout: () => Promise<void>
   checkAuth: () => Promise<boolean>
 }
@@ -118,6 +119,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const signUp = async (email: string, password: string, name: string, phone: string): Promise<{ error?: string }> => {
+    try {
+      const response = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password, name, phone }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Auto-login after successful signup
+        await login(email, password)
+        return {}
+      } else {
+        return { error: data.error || "Signup failed" }
+      }
+    } catch (error) {
+      console.error("Signup error:", error)
+      return { error: "An unexpected error occurred" }
+    }
+  }
+
   const logout = async (): Promise<void> => {
     setIsLoading(true)
     try {
@@ -135,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!user,
         isLoading,
         login,
+        signUp,
         logout,
         checkAuth,
       }}
