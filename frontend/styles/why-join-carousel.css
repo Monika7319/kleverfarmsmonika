@@ -1,0 +1,47 @@
+/* Custom carousel animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.carousel-title {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.carousel-description {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+.carousel-highlight {
+  animation: fadeInUp 0.4s ease-out forwards;
+}
+
+.carousel-button {
+  animation: fadeInUp 1s ease-out forwards;
+}
+
+/* Hover effects */
+.slide-image-container:hover img {
+  transform: scale(1.05);
+  transition: transform 0.8s ease-out;
+}
+
+/* Auto-advance progress bar animation */
+@keyframes progressBar {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.auto-progress-bar {
+  animation: progressBar 5s linear forwards;
+}
