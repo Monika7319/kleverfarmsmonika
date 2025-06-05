@@ -1,0 +1,208 @@
+"use client"
+
+import { useState } from "react"
+import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Home,
+  Package,
+  ShoppingCart,
+  Users,
+  BarChart3,
+  Settings,
+  Menu,
+  LogOut,
+  User,
+  Bell,
+  TrendingUp,
+} from "lucide-react"
+
+const navigation = [
+  {
+    name: "Dashboard",
+    href: "/farmer-dashboard",
+    icon: Home,
+  },
+  {
+    name: "Products",
+    href: "/farmer-dashboard/products",
+    icon: Package,
+    children: [
+      { name: "All Products", href: "/farmer-dashboard/products" },
+      { name: "Add Product", href: "/farmer-dashboard/products/new" },
+      { name: "Categories", href: "/farmer-dashboard/products/categories" },
+    ],
+  },
+  {
+    name: "Orders",
+    href: "/farmer-dashboard/orders",
+    icon: ShoppingCart,
+    children: [
+      { name: "All Orders", href: "/farmer-dashboard/orders" },
+      { name: "Pending", href: "/farmer-dashboard/orders?status=pending" },
+      { name: "Processing", href: "/farmer-dashboard/orders?status=processing" },
+    ],
+  },
+  {
+    name: "Customers",
+    href: "/farmer-dashboard/customers",
+    icon: Users,
+  },
+  {
+    name: "Analytics",
+    href: "/farmer-dashboard/analytics",
+    icon: BarChart3,
+  },
+  {
+    name: "Settings",
+    href: "/farmer-dashboard/settings",
+    icon: Settings,
+  },
+]
+
+export default function FarmerSidebar() {
+  const pathname = usePathname()
+  const router = useRouter()
+  const [isMobileOpen, setIsMobileOpen] = useState(false)
+
+  const handleLogout = () => {
+    localStorage.removeItem("auth_token")
+    localStorage.removeItem("farm_token")
+    router.push("/login")
+  }
+
+  const SidebarContent = () => (
+    <div className="flex h-full flex-col">
+      {/* Logo */}
+      <div className="flex h-16 items-center border-b px-6">
+        <Link href="/farmer-dashboard" className="flex items-center space-x-2">
+          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
+            <TrendingUp className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="text-lg font-semibold">KleverFarms</span>
+        </Link>
+      </div>
+
+      {/* Navigation */}
+      <ScrollArea className="flex-1 px-3 py-4">
+        <nav className="space-y-2">
+          {navigation.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+
+            return (
+              <div key={item.name}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  )}
+                >
+                  <item.icon className="mr-3 h-4 w-4" />
+                  {item.name}
+                </Link>
+
+                {/* Sub-navigation */}
+                {item.children && isActive && (
+                  <div className="ml-6 mt-2 space-y-1">
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.name}
+                        href={child.href}
+                        className={cn(
+                          "block rounded-md px-3 py-1 text-xs transition-colors",
+                          pathname === child.href
+                            ? "bg-accent text-accent-foreground"
+                            : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                        )}
+                      >
+                        {child.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </nav>
+      </ScrollArea>
+
+      {/* User Profile */}
+      <div className="border-t p-4">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="w-full justify-start">
+              <Avatar className="mr-2 h-8 w-8">
+                <AvatarImage src="/placeholder.svg?height=32&width=32" />
+                <AvatarFallback>FM</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col items-start">
+                <span className="text-sm font-medium">Farmer Name</span>
+                <span className="text-xs text-muted-foreground">farmer@example.com</span>
+              </div>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>
+              <User className="mr-2 h-4 w-4" />
+              Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <Bell className="mr-2 h-4 w-4" />
+              Notifications
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+              <LogOut className="mr-2 h-4 w-4" />
+              Log out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
+        <div className="flex flex-col flex-grow border-r bg-card">
+          <SidebarContent />
+        </div>
+      </div>
+
+      {/* Mobile Sidebar */}
+      <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+        <SheetTrigger asChild>
+          <Button variant="outline" size="icon" className="md:hidden fixed top-4 left-4 z-40">
+            <Menu className="h-4 w-4" />
+          </Button>
+        </SheetTrigger>
+        <SheetContent side="left" className="p-0 w-64">
+          <SidebarContent />
+        </SheetContent>
+      </Sheet>
+    </>
+  )
+}

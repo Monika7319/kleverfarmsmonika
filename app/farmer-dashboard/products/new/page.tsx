@@ -1,47 +1,150 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Save, Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { ProductForm } from "../../../components/product-form"
-import type { Product } from "../../../page"
+import { authHeaders, API_BASE_URL } from "@/lib/utils"
+
+interface ProductFormData {
+  name: string
+  category: string
+  price: string
+  unit: string
+  discount: string
+  description: string
+  stock: string
+  is_featured: boolean
+  is_seasonal: boolean
+  image: string
+}
+
+const categories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs", "Honey", "Preserves", "Other"]
 
 export default function NewProductPage() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formData, setFormData] = useState<ProductFormData>({
+    name: "",
+    category: "Vegetables",
+    price: "",
+    unit: "",
+    discount: "0",
+    description: "",
+    stock: "0",
+    is_featured: false,
+    is_seasonal: false,
+    image: "",
+  })
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // API base URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
 
-  // Get auth headers
-  const getAuthHeaders = () => {
-    const headers: HeadersInit = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
+    // Clear error when field is edited
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }))
     }
-
-    if (typeof window !== "undefined") {
-      const token = localStorage.getItem("auth_token")
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`
-      }
-    }
-
-    return headers
   }
 
-  // Handle form submission
-  const handleSubmit = async (productData: Partial<Product>) => {
+  const handleSwitchChange = (name: string, checked: boolean) => {
+    setFormData((prev) => ({ ...prev, [name]: checked }))
+  }
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }))
+
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }))
+    }
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Create preview URL
+    const imageUrl = URL.createObjectURL(file)
+    setFormData((prev) => ({ ...prev, image: imageUrl }))
+
+    if (errors.image) {
+      setErrors((prev) => ({ ...prev, image: "" }))
+    }
+  }
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {}
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Product name is required"
+    }
+
+    if (!formData.category) {
+      newErrors.category = "Category is required"
+    }
+
+    if (!formData.price) {
+      newErrors.price = "Price is required"
+    } else if (isNaN(Number(formData.price)) || Number(formData.price) < 0) {
+      newErrors.price = "Price must be a positive number"
+    }
+
+    if (!formData.unit.trim()) {
+      newErrors.unit = "Unit is required"
+    }
+
+    if (
+      formData.discount &&
+      (isNaN(Number(formData.discount)) || Number(formData.discount) < 0 || Number(formData.discount) > 100)
+    ) {
+      newErrors.discount = "Discount must be between 0 and 100"
+    }
+
+    if (formData.stock && (isNaN(Number(formData.stock)) || Number(formData.stock) < 0)) {
+      newErrors.stock = "Stock must be a positive number"
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!validateForm()) {
+      return
+    }
+
+    setIsSubmitting(true)
+
     try {
-      setIsSubmitting(true)
+      const productData = {
+        name: formData.name,
+        category: formData.category,
+        price: Number(formData.price),
+        unit: formData.unit,
+        discount: Number(formData.discount || 0),
+        description: formData.description || null,
+        stock: Number(formData.stock || 0),
+        image: formData.image || null,
+        is_featured: formData.is_featured,
+        is_seasonal: formData.is_seasonal,
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: authHeaders(),
         body: JSON.stringify(productData),
       })
 
@@ -61,7 +164,6 @@ export default function NewProductPage() {
         description: `${data.product.name} has been added successfully.`,
       })
 
-      // Redirect back to products list
       router.push("/farmer-dashboard/products")
     } catch (err: any) {
       console.error("Error adding product:", err)
@@ -75,49 +177,218 @@ export default function NewProductPage() {
     }
   }
 
-  // Handle cancel
-  const handleCancel = () => {
-    router.push("/farmer-dashboard/products")
-  }
-
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => router.back()} className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Add New Product</h1>
-            <p className="text-gray-600 mt-1">Fill in the details to add a new product to your inventory.</p>
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="sm" onClick={() => router.back()}>
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Add New Product</h2>
+          <p className="text-muted-foreground">Create a new product to sell from your farm</p>
         </div>
+      </div>
 
-        {/* Form Card */}
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Product Information</CardTitle>
-            <CardDescription>
-              Provide detailed information about your product. All fields marked with * are required.
-            </CardDescription>
+            <CardDescription>Basic details about your product</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ProductForm onSubmit={handleSubmit} onCancel={handleCancel} />
+          <CardContent className="space-y-4">
+            {/* Name & Category */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="name" className={errors.name ? "text-red-500" : ""}>
+                  Product Name *
+                </Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  placeholder="Enter product name"
+                  className={errors.name ? "border-red-500" : ""}
+                />
+                {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category" className={errors.category ? "text-red-500" : ""}>
+                  Category *
+                </Label>
+                <Select value={formData.category} onValueChange={(value) => handleSelectChange("category", value)}>
+                  <SelectTrigger className={errors.category ? "border-red-500" : ""}>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Describe your product..."
+                rows={3}
+              />
+            </div>
+
+            {/* Price, Unit, Discount */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="price" className={errors.price ? "text-red-500" : ""}>
+                  Price (₹) *
+                </Label>
+                <Input
+                  id="price"
+                  name="price"
+                  type="number"
+                  value={formData.price}
+                  onChange={handleInputChange}
+                  placeholder="0.00"
+                  min="0"
+                  step="0.01"
+                  className={errors.price ? "border-red-500" : ""}
+                />
+                {errors.price && <p className="text-xs text-red-500">{errors.price}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="unit" className={errors.unit ? "text-red-500" : ""}>
+                  Unit *
+                </Label>
+                <Input
+                  id="unit"
+                  name="unit"
+                  value={formData.unit}
+                  onChange={handleInputChange}
+                  placeholder="kg, piece, liter"
+                  className={errors.unit ? "border-red-500" : ""}
+                />
+                {errors.unit && <p className="text-xs text-red-500">{errors.unit}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="discount" className={errors.discount ? "text-red-500" : ""}>
+                  Discount (%)
+                </Label>
+                <Input
+                  id="discount"
+                  name="discount"
+                  type="number"
+                  value={formData.discount}
+                  onChange={handleInputChange}
+                  placeholder="0"
+                  min="0"
+                  max="100"
+                  className={errors.discount ? "border-red-500" : ""}
+                />
+                {errors.discount && <p className="text-xs text-red-500">{errors.discount}</p>}
+              </div>
+            </div>
+
+            {/* Stock */}
+            <div className="space-y-2">
+              <Label htmlFor="stock" className={errors.stock ? "text-red-500" : ""}>
+                Stock Quantity
+              </Label>
+              <Input
+                id="stock"
+                name="stock"
+                type="number"
+                value={formData.stock}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+                className={errors.stock ? "border-red-500" : ""}
+              />
+              {errors.stock && <p className="text-xs text-red-500">{errors.stock}</p>}
+            </div>
+
+            {/* Image Upload */}
+            <div className="space-y-2">
+              <Label className={errors.image ? "text-red-500" : ""}>Product Image</Label>
+              <div className="flex items-start gap-4">
+                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                  {formData.image ? (
+                    <img
+                      src={formData.image || "/placeholder.svg"}
+                      alt="Product preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label className="cursor-pointer">
+                    <Button variant="outline" type="button" className="flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      Upload Image
+                    </Button>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                  <p className="text-sm text-gray-500">Recommended: 800x800px or larger, JPG or PNG format</p>
+                  {errors.image && <p className="text-xs text-red-500">{errors.image}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_featured"
+                  checked={formData.is_featured}
+                  onCheckedChange={(checked) => handleSwitchChange("is_featured", checked)}
+                />
+                <Label htmlFor="is_featured">Featured Product</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="is_seasonal"
+                  checked={formData.is_seasonal}
+                  onCheckedChange={(checked) => handleSwitchChange("is_seasonal", checked)}
+                />
+                <Label htmlFor="is_seasonal">Seasonal Product</Label>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Loading Overlay */}
-        {isSubmitting && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 flex items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              <span className="text-lg font-medium">Adding product...</span>
-            </div>
-          </div>
-        )}
-      </div>
+        {/* Form Actions */}
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="outline" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Adding...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-4 w-4" />
+                Add Product
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
     </div>
   )
 }
