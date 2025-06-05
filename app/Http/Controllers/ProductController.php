@@ -4,31 +4,28 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Http\Requests\ProductStoreRequest;
+use App\Http\Requests\ProductUpdateRequest;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
-    // Apply auth middleware in constructor
-    public function __construct()
-    {
-        $this->middleware('auth:sanctum');
-    }
-
     // GET /api/farmer/products
     public function index()
     {
         try {
-            $farm = Auth::user();  // assumes authenticated farmer
-            
+            $user = Auth::user();
+            $farm = $user->farm;
+
             if (!$farm) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                    'message' => 'Farm not found for this user'
+                ], 404);
             }
 
-            $products = $farm->products()
+            $products = Product::where('farm_id', $farm->id)
                 ->orderBy('created_at', 'desc')
                 ->get();
 
@@ -47,48 +44,37 @@ class ProductController extends Controller
     }
 
     // POST /api/farmer/products
-    public function store(Request $request)
+    public function store(ProductStoreRequest $request)
     {
         try {
-            $farm = Auth::user();
+            $user = Auth::user();
+            $farm = $user->farm;
 
             if (!$farm) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                    'message' => 'Farm not found for this user'
+                ], 404);
             }
 
-            $validator = Validator::make($request->all(), [
-                'name'        => 'required|string|max:255',
-                'price'       => 'required|numeric|min:0',
-                'unit'        => 'required|string|max:50',
-                'category'    => 'required|string|max:100',
-                'description' => 'nullable|string',
-                'discount'    => 'nullable|integer|min:0|max:100',
-                'stock'       => 'nullable|integer|min:0',
-                'featured'    => 'nullable|boolean',
-                'seasonal'    => 'nullable|boolean',
-                'image'       => 'nullable|string',
-            ]);
+            $validated = $request->validated();
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
+            // Handle image upload
+            if ($request->hasFile('image')) {
+                $image = $request->file('image');
+                $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                $imagePath = $image->storeAs('products', $imageName, 'public');
+                $validated['image'] = '/storage/' . $imagePath;
             }
-
-            $validated = $validator->validated();
 
             $data = array_merge($validated, [
+                'farm_id' => $farm->id,
                 'discount' => $validated['discount'] ?? 0,
-                'stock'    => $validated['stock'] ?? 0,
-                'featured' => $validated['featured'] ?? false,
-                'seasonal' => $validated['seasonal'] ?? false,
-                'image'    => $validated['image'] ?? null,
-                'farm_id'  => $farm->id,
+                'stock' => $validated['stock'] ?? 0,
+                'is_featured' => $validated['is_featured'] ?? false,
+                'is_seasonal' => $validated['is_seasonal'] ?? false,
+                'is_approved' => $farm->is_verified, // Auto-approve if farm is verified
+                'is_active' => true,
             ]);
 
             $product = Product::create($data);
@@ -112,16 +98,17 @@ class ProductController extends Controller
     public function show($id)
     {
         try {
-            $farm = Auth::user();
+            $user = Auth::user();
+            $farm = $user->farm;
 
             if (!$farm) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                    'message' => 'Farm not found for this user'
+                ], 404);
             }
 
-            $product = $farm->products()->findOrFail($id);
+            $product = Product::where('farm_id', $farm->id)->findOrFail($id);
 
             return response()->json([
                 'success' => true,
@@ -138,42 +125,36 @@ class ProductController extends Controller
     }
 
     // PUT/PATCH /api/farmer/products/{id}
-    public function update(Request $request, $id)
+    public function update(ProductUpdateRequest $request, $id)
     {
         try {
-            $farm = Auth::user();
+            $user = Auth::user();
+            $farm = $user->farm;
 
             if (!$farm) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                    'message' => 'Farm not found for this user'
+                ], 404);
             }
 
-            $product = $farm->products()->findOrFail($id);
+            $product = Product::where('farm_id', $farm->id)->findOrFail($id);
+            $validated = $request->validated();
 
-            $validator = Validator::make($request->all(), [
-                'name'        => 'sometimes|required|string|max:255',
-                'price'       => 'sometimes|required|numeric|min:0',
-                'unit'        => 'sometimes|required|string|max:50',
-                'category'    => 'sometimes|required|string|max:100',
-                'description' => 'nullable|string',
-                'discount'    => 'nullable|integer|min:0|max:100',
-                'stock'       => 'nullable|integer|min:0',
-                'featured'    => 'nullable|boolean',
-                'seasonal'    => 'nullable|boolean',
-                'image'       => 'nullable|string',
-            ]);
+            // Handle image upload
+            if ($request->hasFile('image')) {
+                // Delete old image if exists
+                if ($product->image && Storage::disk('public')->exists(str_replace('/storage/', '', $product->image))) {
+                    Storage::disk('public')->delete(str_replace('/storage/', '', $product->image));
+                }
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
+                $image = $request->file('image');
+                $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                $imagePath = $image->storeAs('products', $imageName, 'public');
+                $validated['image'] = '/storage/' . $imagePath;
             }
 
-            $product->update($validator->validated());
+            $product->update($validated);
 
             return response()->json([
                 'success' => true,
@@ -194,16 +175,22 @@ class ProductController extends Controller
     public function destroy($id)
     {
         try {
-            $farm = Auth::user();
+            $user = Auth::user();
+            $farm = $user->farm;
 
             if (!$farm) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                    'message' => 'Farm not found for this user'
+                ], 404);
             }
 
-            $product = $farm->products()->findOrFail($id);
+            $product = Product::where('farm_id', $farm->id)->findOrFail($id);
+
+            // Delete image if exists
+            if ($product->image && Storage::disk('public')->exists(str_replace('/storage/', '', $product->image))) {
+                Storage::disk('public')->delete(str_replace('/storage/', '', $product->image));
+            }
 
             $product->delete();
 
@@ -226,18 +213,19 @@ class ProductController extends Controller
     public function lowStock(Request $request)
     {
         try {
-            $farm = Auth::user();
+            $user = Auth::user();
+            $farm = $user->farm;
 
             if (!$farm) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                    'message' => 'Farm not found for this user'
+                ], 404);
             }
 
             $threshold = $request->get('threshold', 10);
             
-            $products = $farm->products()
+            $products = Product::where('farm_id', $farm->id)
                 ->where('stock', '<=', $threshold)
                 ->where('stock', '>', 0)
                 ->orderBy('stock', 'asc')
@@ -257,60 +245,29 @@ class ProductController extends Controller
         }
     }
 
-    // GET /api/farmer/products/categories
-    public function categories()
-    {
-        try {
-            $farm = Auth::user();
-
-            if (!$farm) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
-            }
-
-            $categories = $farm->products()
-                ->select('category')
-                ->distinct()
-                ->orderBy('category')
-                ->pluck('category');
-
-            return response()->json([
-                'success' => true,
-                'categories' => $categories
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch categories',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
     // GET /api/farmer/dashboard/stats
     public function dashboardStats()
     {
         try {
-            $farm = Auth::user();
+            $user = Auth::user();
+            $farm = $user->farm;
 
             if (!$farm) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Unauthenticated'
-                ], 401);
+                    'message' => 'Farm not found for this user'
+                ], 404);
             }
 
-            $totalProducts = $farm->products()->count();
-            $featuredProducts = $farm->products()->where('featured', true)->count();
-            $seasonalProducts = $farm->products()->where('seasonal', true)->count();
-            $outOfStockProducts = $farm->products()->where('stock', 0)->count();
-            $lowStockProducts = $farm->products()->where('stock', '>', 0)->where('stock', '<=', 5)->count();
+            $totalProducts = Product::where('farm_id', $farm->id)->count();
+            $activeProducts = Product::where('farm_id', $farm->id)->where('is_active', true)->count();
+            $featuredProducts = Product::where('farm_id', $farm->id)->where('is_featured', true)->count();
+            $seasonalProducts = Product::where('farm_id', $farm->id)->where('is_seasonal', true)->count();
+            $outOfStockProducts = Product::where('farm_id', $farm->id)->where('stock', 0)->count();
+            $lowStockProducts = Product::where('farm_id', $farm->id)->where('stock', '>', 0)->where('stock', '<=', 5)->count();
 
             // Category distribution
-            $categoryStats = $farm->products()
+            $categoryStats = Product::where('farm_id', $farm->id)
                 ->select('category')
                 ->selectRaw('COUNT(*) as count')
                 ->groupBy('category')
@@ -318,7 +275,7 @@ class ProductController extends Controller
                 ->get();
 
             // Recent products
-            $recentProducts = $farm->products()
+            $recentProducts = Product::where('farm_id', $farm->id)
                 ->orderByDesc('created_at')
                 ->limit(5)
                 ->get();
@@ -327,6 +284,7 @@ class ProductController extends Controller
                 'success' => true,
                 'stats' => [
                     'total_products' => $totalProducts,
+                    'active_products' => $activeProducts,
                     'featured_products' => $featuredProducts,
                     'seasonal_products' => $seasonalProducts,
                     'out_of_stock_products' => $outOfStockProducts,

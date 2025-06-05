@@ -12,23 +12,27 @@ class Product extends Model
     protected $fillable = [
         'farm_id',
         'name',
+        'category',
         'price',
         'unit',
-        'category',
-        'description',
         'discount',
+        'description',
         'stock',
-        'featured',
-        'seasonal',
         'image',
+        'is_featured',
+        'is_seasonal',
+        'is_approved',
+        'is_active',
     ];
 
     protected $casts = [
         'price' => 'decimal:2',
         'discount' => 'integer',
         'stock' => 'integer',
-        'featured' => 'boolean',
-        'seasonal' => 'boolean',
+        'is_featured' => 'boolean',
+        'is_seasonal' => 'boolean',
+        'is_approved' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     // Relationships
@@ -40,12 +44,22 @@ class Product extends Model
     // Scopes
     public function scopeFeatured($query)
     {
-        return $query->where('featured', true);
+        return $query->where('is_featured', true);
     }
 
     public function scopeSeasonal($query)
     {
-        return $query->where('seasonal', true);
+        return $query->where('is_seasonal', true);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('is_approved', true);
     }
 
     public function scopeInStock($query)
