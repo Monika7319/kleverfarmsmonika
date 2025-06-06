@@ -47,6 +47,7 @@ export default function NewProductPage() {
     image: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [image, setImage] = useState<string | null>(null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -178,7 +179,7 @@ export default function NewProductPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="outline" size="sm" onClick={() => router.back()}>
@@ -282,40 +283,21 @@ export default function NewProductPage() {
                 {errors.unit && <p className="text-xs text-red-500">{errors.unit}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="discount" className={errors.discount ? "text-red-500" : ""}>
-                  Discount (%)
+                <Label htmlFor="stock" className={errors.stock ? "text-red-500" : ""}>
+                  Stock Quantity
                 </Label>
                 <Input
-                  id="discount"
-                  name="discount"
+                  id="stock"
+                  name="stock"
                   type="number"
-                  value={formData.discount}
+                  value={formData.stock}
                   onChange={handleInputChange}
                   placeholder="0"
                   min="0"
-                  max="100"
-                  className={errors.discount ? "border-red-500" : ""}
+                  className={errors.stock ? "border-red-500" : ""}
                 />
-                {errors.discount && <p className="text-xs text-red-500">{errors.discount}</p>}
+                {errors.stock && <p className="text-xs text-red-500">{errors.stock}</p>}
               </div>
-            </div>
-
-            {/* Stock */}
-            <div className="space-y-2">
-              <Label htmlFor="stock" className={errors.stock ? "text-red-500" : ""}>
-                Stock Quantity
-              </Label>
-              <Input
-                id="stock"
-                name="stock"
-                type="number"
-                value={formData.stock}
-                onChange={handleInputChange}
-                placeholder="0"
-                min="0"
-                className={errors.stock ? "border-red-500" : ""}
-              />
-              {errors.stock && <p className="text-xs text-red-500">{errors.stock}</p>}
             </div>
 
             {/* Image Upload */}
