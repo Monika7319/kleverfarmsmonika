@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import { Plus, Search, Filter, Package, ArrowUpDown, Loader2, Edit, Trash2, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,11 +35,12 @@ interface Product {
 }
 
 export default function ProductsPage() {
+  const searchParams = useSearchParams()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
-  const [activeTab, setActiveTab] = useState("all")
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all")
   const [sortBy, setSortBy] = useState("created_at")
   const [sortOrder, setSortOrder] = useState("desc")
   const [categories, setCategories] = useState<string[]>([])
@@ -52,7 +54,6 @@ export default function ProductsPage() {
       const params = new URLSearchParams()
       if (debouncedSearch) params.append("search", debouncedSearch)
       if (categoryFilter !== "all") params.append("category", categoryFilter)
-      if (activeTab !== "all") params.append("status", activeTab)
       params.append("sort_by", sortBy)
       params.append("sort_order", sortOrder)
 
@@ -89,7 +90,7 @@ export default function ProductsPage() {
     } finally {
       setLoading(false)
     }
-  }, [debouncedSearch, categoryFilter, activeTab, sortBy, sortOrder, toast])
+  }, [debouncedSearch, categoryFilter, sortBy, sortOrder, toast])
 
   useEffect(() => {
     fetchProducts()
@@ -135,25 +136,11 @@ export default function ProductsPage() {
 
   const filteredProducts = products.filter((product) => {
     // Filter by tab
-    if (activeTab === "featured" && !product.is_featured) return false
-    if (activeTab === "seasonal" && !product.is_seasonal) return false
     if (activeTab === "approved" && !product.is_approved) return false
     if (activeTab === "pending" && product.is_approved) return false
-    if (activeTab === "out-of-stock" && product.stock > 0) return false
-    if (activeTab === "low-stock" && (product.stock === 0 || product.stock > 10)) return false
 
     return true
   })
-
-  const getStockBadge = (stock: number) => {
-    if (stock === 0) {
-      return <Badge variant="destructive">Out of Stock</Badge>
-    } else if (stock <= 10) {
-      return <Badge variant="secondary">Low Stock: {stock}</Badge>
-    } else {
-      return <Badge variant="outline">In Stock: {stock}</Badge>
-    }
-  }
 
   const getApprovalBadge = (isApproved: boolean) => {
     if (isApproved) {
@@ -247,8 +234,6 @@ export default function ProductsPage() {
                   <SelectItem value="price-desc">Price: High to Low</SelectItem>
                   <SelectItem value="name-asc">Name: A to Z</SelectItem>
                   <SelectItem value="name-desc">Name: Z to A</SelectItem>
-                  <SelectItem value="stock-asc">Stock: Low to High</SelectItem>
-                  <SelectItem value="stock-desc">Stock: High to Low</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -261,11 +246,7 @@ export default function ProductsPage() {
         <TabsList>
           <TabsTrigger value="all">All Products</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="featured">Featured</TabsTrigger>
-          <TabsTrigger value="seasonal">Seasonal</TabsTrigger>
-          <TabsTrigger value="low-stock">Low Stock</TabsTrigger>
-          <TabsTrigger value="out-of-stock">Out of Stock</TabsTrigger>
+          <TabsTrigger value="pending">Pending Approval</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -299,22 +280,7 @@ export default function ProductsPage() {
                   fill
                   className="object-cover"
                 />
-                <div className="absolute top-2 left-2 flex flex-wrap gap-1">
-                  {product.is_featured && (
-                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                      Featured
-                    </Badge>
-                  )}
-                  {product.is_seasonal && (
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      Seasonal
-                    </Badge>
-                  )}
-                </div>
-                <div className="absolute top-2 right-2 flex flex-col gap-1">
-                  {getStockBadge(product.stock)}
-                  {getApprovalBadge(product.is_approved)}
-                </div>
+                <div className="absolute top-2 right-2">{getApprovalBadge(product.is_approved)}</div>
               </div>
 
               <CardContent className="p-4">
@@ -332,12 +298,8 @@ export default function ProductsPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-lg font-bold text-green-600">{formatCurrency(product.price)}</span>
                       <span className="text-sm text-gray-500">/{product.unit}</span>
-                      {product.discount > 0 && (
-                        <Badge variant="destructive" className="text-xs">
-                          {product.discount}% OFF
-                        </Badge>
-                      )}
                     </div>
+                    <span className="text-sm text-gray-500">Stock: {product.stock}</span>
                   </div>
 
                   <div className="flex gap-2 pt-2">
@@ -345,11 +307,9 @@ export default function ProductsPage() {
                       <Eye className="h-4 w-4 mr-1" />
                       View
                     </Button>
-                    <Link href={`/farmer-dashboard/products/${product.id}/edit`}>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </Link>
+                    <Button variant="outline" size="sm">
+                      <Edit className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

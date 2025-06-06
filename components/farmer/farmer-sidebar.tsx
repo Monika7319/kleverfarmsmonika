@@ -7,16 +7,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Home, Package, Settings, Menu, LogOut, User, ArrowLeft, Tractor } from "lucide-react"
+import { Home, Package, Settings, Menu, LogOut, ArrowLeft, Tractor } from "lucide-react"
 import { authHeaders, API_BASE_URL } from "@/lib/utils"
 
 const navigation = [
@@ -56,6 +48,7 @@ export default function FarmerSidebar() {
   const router = useRouter()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
   const [userData, setUserData] = useState<UserData | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchUserData()
@@ -80,6 +73,8 @@ export default function FarmerSidebar() {
       }
     } catch (error) {
       console.error("Error fetching user data:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -124,6 +119,7 @@ export default function FarmerSidebar() {
                   "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   isActive ? "bg-green-100 text-green-900" : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
                 )}
+                onClick={() => setIsMobileOpen(false)}
               >
                 <item.icon className="mr-3 h-4 w-4" />
                 {item.name}
@@ -153,37 +149,16 @@ export default function FarmerSidebar() {
 
       {/* User Profile */}
       <div className="border-t p-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="w-full justify-start">
-              <Avatar className="mr-2 h-8 w-8">
-                <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                <AvatarFallback>{userData ? getInitials(userData.name) : "FM"}</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col items-start">
-                <span className="text-sm font-medium">{userData?.name || "Loading..."}</span>
-                <span className="text-xs text-muted-foreground">{userData?.email || ""}</span>
-              </div>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center">
+          <Avatar className="mr-2 h-8 w-8">
+            <AvatarImage src="/placeholder.svg?height=32&width=32" />
+            <AvatarFallback>{userData ? getInitials(userData.name) : "U"}</AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col items-start min-w-0">
+            <span className="text-sm font-medium truncate">{loading ? "Loading..." : userData?.name || "User"}</span>
+            <span className="text-xs text-muted-foreground truncate">{loading ? "" : userData?.email || ""}</span>
+          </div>
+        </div>
       </div>
     </div>
   )
