@@ -6,9 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Product;
-use App\Models\Order;
-use App\Models\User;
-use Carbon\Carbon;
 
 class FarmerDashboardController extends Controller
 {
@@ -27,8 +24,8 @@ class FarmerDashboardController extends Controller
 
             return response()->json([
                 'success' => true,
-                'farm' => $farm,
-                'user' => $user
+                'user' => $user,
+                'farm' => $farm
             ], 200);
 
         } catch (\Exception $e) {
@@ -53,40 +50,25 @@ class FarmerDashboardController extends Controller
                 ], 404);
             }
 
-            $currentMonth = Carbon::now()->startOfMonth();
-            $lastMonth = Carbon::now()->subMonth()->startOfMonth();
-
             // Product stats
             $totalProducts = Product::where('farm_id', $farm->id)->count();
-            $newProductsThisMonth = Product::where('farm_id', $farm->id)
-                ->where('created_at', '>=', $currentMonth)
-                ->count();
-            $lowStockProducts = Product::where('farm_id', $farm->id)
-                ->where('stock', '>', 0)
-                ->where('stock', '<=', 10)
-                ->count();
-            $outOfStockProducts = Product::where('farm_id', $farm->id)
-                ->where('stock', 0)
-                ->count();
+            $approvedProducts = Product::where('farm_id', $farm->id)->approved()->count();
+            $pendingProducts = Product::where('farm_id', $farm->id)->pending()->count();
+            $lowStockProducts = Product::where('farm_id', $farm->id)->lowStock()->count();
+            $outOfStockProducts = Product::where('farm_id', $farm->id)->outOfStock()->count();
 
-            // Order stats (if orders table exists)
-            $totalOrders = 0;
-            $pendingOrders = 0;
-            $totalRevenue = 0;
-            $newCustomersThisMonth = 0;
-            $totalCustomers = 0;
+            // Calculate total stock value
+            $totalStockValue = Product::where('farm_id', $farm->id)
+                ->selectRaw('SUM(price * stock) as total_value')
+                ->value('total_value') ?? 0;
 
-            // Mock data for demonstration
             $stats = [
-                'totalRevenue' => 45231.89,
-                'productCount' => $totalProducts,
-                'newProductsThisMonth' => $newProductsThisMonth,
-                'ordersCount' => 156,
-                'pendingOrders' => 8,
-                'customersCount' => 89,
-                'newCustomersThisMonth' => 12,
-                'lowStockProducts' => $lowStockProducts,
-                'outOfStockProducts' => $outOfStockProducts,
+                'total_products' => $totalProducts,
+                'approved_products' => $approvedProducts,
+                'pending_products' => $pendingProducts,
+                'low_stock_products' => $lowStockProducts,
+                'out_of_stock_products' => $outOfStockProducts,
+                'total_stock_value' => (float) $totalStockValue,
             ];
 
             return response()->json([

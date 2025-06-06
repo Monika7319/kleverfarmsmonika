@@ -33,17 +33,23 @@ class FarmerProductController extends Controller
 
             if ($request->has('status')) {
                 switch ($request->status) {
+                    case 'approved':
+                        $query->approved();
+                        break;
+                    case 'pending':
+                        $query->pending();
+                        break;
                     case 'featured':
-                        $query->where('is_featured', true);
+                        $query->featured();
                         break;
                     case 'seasonal':
-                        $query->where('is_seasonal', true);
+                        $query->seasonal();
                         break;
                     case 'low-stock':
-                        $query->where('stock', '>', 0)->where('stock', '<=', 10);
+                        $query->lowStock();
                         break;
                     case 'out-of-stock':
-                        $query->where('stock', 0);
+                        $query->outOfStock();
                         break;
                 }
             }
@@ -108,7 +114,7 @@ class FarmerProductController extends Controller
                 'stock' => 'nullable|integer|min:0',
                 'is_featured' => 'boolean',
                 'is_seasonal' => 'boolean',
-                'image' => 'nullable|string',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
 
             if ($validator->fails()) {
@@ -125,8 +131,16 @@ class FarmerProductController extends Controller
             $data['stock'] = $data['stock'] ?? 0;
             $data['is_featured'] = $data['is_featured'] ?? false;
             $data['is_seasonal'] = $data['is_seasonal'] ?? false;
-            $data['is_approved'] = $farm->is_verified ?? true;
+            $data['is_approved'] = $farm->is_verified ?? false; // Auto-approve if farm is verified
             $data['is_active'] = true;
+
+            // Handle image upload
+            if ($request->hasFile('image')) {
+                $image = $request->file('image');
+                $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                $imagePath = $image->storeAs('products', $imageName, 'public');
+                $data['image'] = '/storage/' . $imagePath;
+            }
 
             $product = Product::create($data);
 
@@ -199,7 +213,7 @@ class FarmerProductController extends Controller
                 'stock' => 'nullable|integer|min:0',
                 'is_featured' => 'boolean',
                 'is_seasonal' => 'boolean',
-                'image' => 'nullable|string',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
 
             if ($validator->fails()) {
@@ -211,6 +225,20 @@ class FarmerProductController extends Controller
             }
 
             $data = $validator->validated();
+
+            // Handle image upload
+            if ($request->hasFile('image')) {
+                // Delete old image if exists
+                if ($product->image && Storage::disk('public')->exists(str_replace('/storage/', '', $product->image))) {
+                    Storage::disk('public')->delete(str_replace('/storage/', '', $product->image));
+                }
+
+                $image = $request->file('image');
+                $imageName = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
+                $imagePath = $image->storeAs('products', $imageName, 'public');
+                $data['image'] = '/storage/' . $imagePath;
+            }
+
             $product->update($data);
 
             return response()->json([
@@ -242,6 +270,12 @@ class FarmerProductController extends Controller
             }
 
             $product = Product::where('farm_id', $farm->id)->findOrFail($id);
+
+            // Delete image if exists
+            if ($product->image && Storage::disk('public')->exists(str_replace('/storage/', '', $product->image))) {
+                Storage::disk('public')->delete(str_replace('/storage/', '', $product->image));
+            }
+
             $product->delete();
 
             return response()->json([
@@ -274,8 +308,7 @@ class FarmerProductController extends Controller
             $threshold = $request->get('threshold', 10);
             
             $products = Product::where('farm_id', $farm->id)
-                ->where('stock', '>', 0)
-                ->where('stock', '<=', $threshold)
+                ->lowStock($threshold)
                 ->orderBy('stock', 'asc')
                 ->get();
 
@@ -288,55 +321,6 @@ class FarmerProductController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch low stock products',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function topSelling(Request $request)
-    {
-        try {
-            $user = Auth::user();
-            $farm = $user->farm;
-
-            if (!$farm) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Farm not found for this user'
-                ], 404);
-            }
-
-            // Mock data for top selling products
-            $products = [
-                [
-                    'id' => 1,
-                    'name' => 'Organic Milk',
-                    'sales_count' => 45,
-                    'revenue' => 2250.00
-                ],
-                [
-                    'id' => 2,
-                    'name' => 'Fresh Vegetables',
-                    'sales_count' => 32,
-                    'revenue' => 1600.00
-                ],
-                [
-                    'id' => 3,
-                    'name' => 'Farm Eggs',
-                    'sales_count' => 28,
-                    'revenue' => 840.00
-                ]
-            ];
-
-            return response()->json([
-                'success' => true,
-                'products' => $products
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch top selling products',
                 'error' => $e->getMessage()
             ], 500);
         }

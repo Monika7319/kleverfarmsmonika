@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Farm extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
         'name',
@@ -31,12 +32,12 @@ class Farm extends Model
     ];
 
     // Relationships
-    public function user(): BelongsTo
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    public function products(): HasMany
+    public function products()
     {
         return $this->hasMany(Product::class);
     }
@@ -50,5 +51,11 @@ class Farm extends Model
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
+    }
+
+    // Accessors
+    public function getFullAddressAttribute()
+    {
+        return "{$this->address}, {$this->city}, {$this->state} {$this->zip_code}";
     }
 }

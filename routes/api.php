@@ -4,7 +4,6 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\FarmerDashboardController;
 use App\Http\Controllers\Api\FarmerProductController;
-use App\Http\Controllers\Api\FarmerOrderController;
 
 // Public routes
 Route::prefix('auth')->group(function () {
@@ -34,12 +33,5 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/products/{id}', [FarmerProductController::class, 'update']);
         Route::delete('/products/{id}', [FarmerProductController::class, 'destroy']);
         Route::get('/products/low-stock', [FarmerProductController::class, 'lowStock']);
-        Route::get('/products/top-selling', [FarmerProductController::class, 'topSelling']);
-        
-        // Orders
-        Route::get('/orders', [FarmerOrderController::class, 'index']);
-        Route::get('/orders/recent', [FarmerOrderController::class, 'recent']);
-        Route::get('/orders/{id}', [FarmerOrderController::class, 'show']);
-        Route::put('/orders/{id}/status', [FarmerOrderController::class, 'updateStatus']);
     });
 });

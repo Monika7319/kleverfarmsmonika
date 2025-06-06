@@ -2,12 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'farm_id',
@@ -62,6 +63,11 @@ class Product extends Model
         return $query->where('is_approved', true);
     }
 
+    public function scopePending($query)
+    {
+        return $query->where('is_approved', false);
+    }
+
     public function scopeInStock($query)
     {
         return $query->where('stock', '>', 0);
@@ -72,7 +78,7 @@ class Product extends Model
         return $query->where('stock', 0);
     }
 
-    public function scopeLowStock($query, $threshold = 5)
+    public function scopeLowStock($query, $threshold = 10)
     {
         return $query->where('stock', '>', 0)->where('stock', '<=', $threshold);
     }
@@ -98,7 +104,7 @@ class Product extends Model
 
     public function getIsLowStockAttribute()
     {
-        return $this->stock > 0 && $this->stock <= 5;
+        return $this->stock > 0 && $this->stock <= 10;
     }
 
     public function getStockStatusAttribute()
