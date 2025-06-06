@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Home, Package, Settings, Menu, LogOut, User, ArrowLeft, Tractor } from "lucide-react"
+import { authHeaders, API_BASE_URL } from "@/lib/utils"
 
 const navigation = [
   {
@@ -41,15 +42,60 @@ const navigation = [
   },
 ]
 
+interface UserData {
+  id: number
+  name: string
+  email: string
+  farm?: {
+    name: string
+  }
+}
+
 export default function FarmerSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [userData, setUserData] = useState<UserData | null>(null)
+
+  useEffect(() => {
+    fetchUserData()
+  }, [])
+
+  const fetchUserData = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/farmer/dashboard`, {
+        headers: authHeaders(),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setUserData({
+            id: data.user.id,
+            name: data.user.name,
+            email: data.user.email,
+            farm: data.farm,
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error)
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("auth_token")
     localStorage.removeItem("farm_token")
     router.push("/login")
+  }
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((word) => word.charAt(0))
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
   }
 
   const SidebarContent = () => (
@@ -112,11 +158,11 @@ export default function FarmerSidebar() {
             <Button variant="ghost" className="w-full justify-start">
               <Avatar className="mr-2 h-8 w-8">
                 <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                <AvatarFallback>FM</AvatarFallback>
+                <AvatarFallback>{userData ? getInitials(userData.name) : "FM"}</AvatarFallback>
               </Avatar>
               <div className="flex flex-col items-start">
-                <span className="text-sm font-medium">Farmer Name</span>
-                <span className="text-xs text-muted-foreground">farmer@example.com</span>
+                <span className="text-sm font-medium">{userData?.name || "Loading..."}</span>
+                <span className="text-xs text-muted-foreground">{userData?.email || ""}</span>
               </div>
             </Button>
           </DropdownMenuTrigger>
