@@ -3,40 +3,55 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
-class Farm extends Model
+class Farm extends Authenticatable
 {
-    use HasFactory;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'user_id',
-        'name',
-        'description',
+        'farmName',
+        'ownerName',
+        'email',
+        'phone',
+        'password',
         'address',
         'city',
         'state',
-        'zip_code',
-        'phone',
-        'email',
-        'website',
-        'logo',
-        'banner',
+        'zip',
+        'farmSize',
+        'farmType',
+        'description',
+        'farmingMethods',
+        'specialties',
+        'images',
+        'acceptTerms',
+        'latitude',
+        'longitude',
         'is_verified',
         'is_active',
+        'slug',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
     ];
 
     protected $casts = [
+        'email_verified_at' => 'datetime',
         'is_verified' => 'boolean',
         'is_active' => 'boolean',
+        'acceptTerms' => 'boolean',
+        'farmingMethods' => 'array',
+        'specialties' => 'array',
+        'images' => 'array',
     ];
 
     // Relationships
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
-
     public function products()
     {
         return $this->hasMany(Product::class);
@@ -56,6 +71,6 @@ class Farm extends Model
     // Accessors
     public function getFullAddressAttribute()
     {
-        return "{$this->address}, {$this->city}, {$this->state} {$this->zip_code}";
+        return "{$this->address}, {$this->city}, {$this->state} {$this->zip}";
     }
 }
