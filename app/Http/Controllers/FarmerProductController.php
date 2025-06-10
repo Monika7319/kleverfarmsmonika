@@ -28,22 +28,22 @@ class FarmerProductController extends Controller
             if ($request->has('status')) {
                 switch ($request->status) {
                     case 'approved':
-                        $query->approved();
+                        $query->where('is_approved', true);
                         break;
                     case 'pending':
-                        $query->pending();
+                        $query->where('is_approved', false);
                         break;
                     case 'featured':
-                        $query->featured();
+                        $query->where('is_featured', true);
                         break;
                     case 'seasonal':
-                        $query->seasonal();
+                        $query->where('is_seasonal', true);
                         break;
                     case 'low-stock':
-                        $query->lowStock();
+                        $query->where('stock', '<=', 10);
                         break;
                     case 'out-of-stock':
-                        $query->outOfStock();
+                        $query->where('stock', 0);
                         break;
                 }
             }
@@ -96,8 +96,8 @@ class FarmerProductController extends Controller
                 'discount' => 'nullable|integer|min:0|max:100',
                 'description' => 'nullable|string',
                 'stock' => 'nullable|integer|min:0',
-                'is_featured' => 'boolean',
-                'is_seasonal' => 'boolean',
+                'is_featured' => 'nullable|boolean',
+                'is_seasonal' => 'nullable|boolean',
                 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             ]);
 
@@ -113,19 +113,25 @@ class FarmerProductController extends Controller
             $data['farm_id'] = $farm->id;
             $data['discount'] = $data['discount'] ?? 0;
             $data['stock'] = $data['stock'] ?? 0;
-            $data['is_featured'] = $data['is_featured'] ?? false;
-            $data['is_seasonal'] = $data['is_seasonal'] ?? false;
+            $data['is_featured'] = filter_var($data['is_featured'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $data['is_seasonal'] = filter_var($data['is_seasonal'] ?? false, FILTER_VALIDATE_BOOLEAN);
             $data['is_approved'] = $farm->is_verified ? true : false; // Auto-approve if farm is verified
             $data['is_active'] = true;
 
             // Handle image upload
             if ($request->hasFile('image')) {
                 $image = $request->file('image');
-                $farmSlug = str_replace(' ', '_', strtolower($farm->farmName));
+                $farmSlug = str_replace(' ', '_', strtolower($farm->farmName ?? 'farm'));
                 $filename = $farmSlug . '_product_' . time() . '.' . $image->getClientOriginalExtension();
                 
+                // Create directory if it doesn't exist
+                $uploadPath = public_path('products/images');
+                if (!file_exists($uploadPath)) {
+                    mkdir($uploadPath, 0755, true);
+                }
+                
                 // Store in public/products/images directory
-                $image->move(public_path('products/images'), $filename);
+                $image->move($uploadPath, $filename);
                 $data['image'] = $filename;
             }
 
@@ -189,8 +195,8 @@ class FarmerProductController extends Controller
                 'discount' => 'nullable|integer|min:0|max:100',
                 'description' => 'nullable|string',
                 'stock' => 'nullable|integer|min:0',
-                'is_featured' => 'boolean',
-                'is_seasonal' => 'boolean',
+                'is_featured' => 'nullable|boolean',
+                'is_seasonal' => 'nullable|boolean',
                 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             ]);
 
@@ -215,10 +221,15 @@ class FarmerProductController extends Controller
                 }
 
                 $image = $request->file('image');
-                $farmSlug = str_replace(' ', '_', strtolower($farm->farmName));
+                $farmSlug = str_replace(' ', '_', strtolower($farm->farmName ?? 'farm'));
                 $filename = $farmSlug . '_product_' . time() . '.' . $image->getClientOriginalExtension();
                 
-                $image->move(public_path('products/images'), $filename);
+                $uploadPath = public_path('products/images');
+                if (!file_exists($uploadPath)) {
+                    mkdir($uploadPath, 0755, true);
+                }
+                
+                $image->move($uploadPath, $filename);
                 $data['image'] = $filename;
             }
 
@@ -286,10 +297,10 @@ class FarmerProductController extends Controller
 
             // Product stats
             $totalProducts = Product::where('farm_id', $farm->id)->count();
-            $approvedProducts = Product::where('farm_id', $farm->id)->approved()->count();
-            $pendingProducts = Product::where('farm_id', $farm->id)->pending()->count();
-            $lowStockProducts = Product::where('farm_id', $farm->id)->lowStock()->count();
-            $outOfStockProducts = Product::where('farm_id', $farm->id)->outOfStock()->count();
+            $approvedProducts = Product::where('farm_id', $farm->id)->where('is_approved', true)->count();
+            $pendingProducts = Product::where('farm_id', $farm->id)->where('is_approved', false)->count();
+            $lowStockProducts = Product::where('farm_id', $farm->id)->where('stock', '<=', 10)->count();
+            $outOfStockProducts = Product::where('farm_id', $farm->id)->where('stock', 0)->count();
 
             // Calculate total stock value
             $totalStockValue = Product::where('farm_id', $farm->id)
@@ -315,36 +326,6 @@ class FarmerProductController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch dashboard stats',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Get low stock products
-     * GET /api/farmer/products/low-stock
-     */
-    public function lowStock(Request $request)
-    {
-        try {
-            $farm = $request->user();
-            $threshold = $request->get('threshold', 10);
-            
-            $products = Product::where('farm_id', $farm->id)
-                ->lowStock($threshold)
-                ->orderBy('stock', 'asc')
-                ->get();
-
-            return response()->json([
-                'success' => true,
-                'products' => $products
-            ], 200);
-
-        } catch (\Exception $e) {
-            \Log::error('Low stock products error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to fetch low stock products',
                 'error' => $e->getMessage()
             ], 500);
         }

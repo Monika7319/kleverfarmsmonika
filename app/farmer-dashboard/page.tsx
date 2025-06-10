@@ -57,7 +57,7 @@ export default function FarmerDashboardPage() {
 
       // Fetch farmer profile and products
       const [profileRes, productsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/farmer/me`, { headers: authHeaders() }),
+        fetch(`${API_BASE_URL}/api/farmer/dashboard`, { headers: authHeaders() }),
         fetch(`${API_BASE_URL}/api/farmer/products`, { headers: authHeaders() }),
       ])
 
@@ -71,20 +71,12 @@ export default function FarmerDashboardPage() {
       if (profileRes.ok) {
         const profileData = await profileRes.json()
         if (profileData.success) {
-          const farm = profileData.farm
           setFarmer({
-            id: farm.id,
-            name: farm.ownerName,
-            email: farm.email,
-            phone: farm.phone || "Not provided",
-            farm: {
-              id: farm.id,
-              name: farm.farmName,
-              address: farm.address,
-              city: farm.city,
-              state: farm.state,
-              is_verified: farm.is_verified,
-            },
+            id: profileData.user.id,
+            name: profileData.user.name,
+            email: profileData.user.email,
+            phone: profileData.user.phone || "Not provided",
+            farm: profileData.farm,
           })
         }
       }

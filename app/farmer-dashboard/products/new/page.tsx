@@ -47,7 +47,8 @@ export default function NewProductPage() {
     image: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [image, setImage] = useState<string | null>(null)
+  const [image, setImage] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -75,9 +76,8 @@ export default function NewProductPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Create preview URL
-    const imageUrl = URL.createObjectURL(file)
-    setFormData((prev) => ({ ...prev, image: imageUrl }))
+    setImage(file)
+    setPreviewUrl(URL.createObjectURL(file))
 
     if (errors.image) {
       setErrors((prev) => ({ ...prev, image: "" }))
@@ -122,31 +122,28 @@ export default function NewProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    if (!validateForm()) {
-      return
-    }
+    if (!validateForm()) return
 
     setIsSubmitting(true)
-
     try {
-      const productData = {
-        name: formData.name,
-        category: formData.category,
-        price: Number(formData.price),
-        unit: formData.unit,
-        discount: Number(formData.discount || 0),
-        description: formData.description || null,
-        stock: Number(formData.stock || 0),
-        image: formData.image || null,
-        is_featured: formData.is_featured,
-        is_seasonal: formData.is_seasonal,
-      }
+      const form = new FormData()
+      form.append("name", formData.name)
+      form.append("category", formData.category)
+      form.append("price", formData.price)
+      form.append("unit", formData.unit)
+      form.append("discount", formData.discount)
+      form.append("stock", formData.stock)
+      form.append("description", formData.description)
+      form.append("is_featured", String(formData.is_featured))
+      form.append("is_seasonal", String(formData.is_seasonal))
+      if (image) form.append("image", image)
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(productData),
+        headers: {
+          Authorization: authHeaders().Authorization, // Don't set Content-Type for FormData
+        },
+        body: form,
       })
 
       if (!response.ok) {
@@ -159,7 +156,6 @@ export default function NewProductPage() {
       }
 
       const data = await response.json()
-
       toast({
         title: "Product Added",
         description: `${data.product.name} has been added successfully.`,
@@ -305,12 +301,8 @@ export default function NewProductPage() {
               <Label className={errors.image ? "text-red-500" : ""}>Product Image</Label>
               <div className="flex items-start gap-4">
                 <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                  {formData.image ? (
-                    <img
-                      src={formData.image || "/placeholder.svg"}
-                      alt="Product preview"
-                      className="w-full h-full object-cover"
-                    />
+                  {previewUrl ? (
+                    <img src={previewUrl || "/placeholder.svg"} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
                   )}
@@ -323,7 +315,7 @@ export default function NewProductPage() {
                     </Button>
                     <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
                   </label>
-                  <p className="text-sm text-gray-500">Recommended: 800x800px or larger, JPG or PNG format</p>
+                  <p className="text-sm text-gray-500">Recommended: 800×800px or larger, JPG or PNG format</p>
                   {errors.image && <p className="text-xs text-red-500">{errors.image}</p>}
                 </div>
               </div>

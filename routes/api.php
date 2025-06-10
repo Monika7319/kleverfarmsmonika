@@ -1,45 +1,41 @@
 <?php
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\FarmController;
-use App\Http\Controllers\FarmDisplayController;
 use App\Http\Controllers\FarmerAuthController;
 use App\Http\Controllers\FarmerProductController;
+use App\Http\Controllers\Api\FarmerDashboardController;
+use App\Http\Controllers\Api\FarmerOrderController;
 
-// Public routes
-Route::prefix('farms')->group(function () {
-    Route::get('/', [FarmDisplayController::class, 'index']);
-    Route::get('/{slug}', [FarmDisplayController::class, 'showBySlug']);
-    Route::post('/', [FarmController::class, 'store']); // Farm registration
-});
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
-// Farmer authentication routes
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
+
+// Farmer Authentication Routes
 Route::prefix('farmer')->group(function () {
-    Route::post('/login', [FarmerAuthController::class, 'login']);
+    Route::post('register', [FarmerAuthController::class, 'register']);
+    Route::post('login', [FarmerAuthController::class, 'login']);
     
     // Protected farmer routes
     Route::middleware(['auth:sanctum'])->group(function () {
-        Route::post('/logout', [FarmerAuthController::class, 'logout']);
-        Route::get('/me', [FarmerAuthController::class, 'me']);
-        Route::put('/profile', [FarmerAuthController::class, 'updateProfile']);
+        Route::post('logout', [FarmerAuthController::class, 'logout']);
+        Route::get('me', [FarmerAuthController::class, 'me']);
+        Route::get('dashboard', [FarmerDashboardController::class, 'index']);
         
-        // Dashboard stats
-        Route::get('/dashboard/stats', [FarmerProductController::class, 'dashboardStats']);
+        // Product management routes
+        Route::get('products/low-stock', [FarmerProductController::class, 'lowStock']);
+        Route::get('products/stats', [FarmerProductController::class, 'dashboardStats']);
+        Route::apiResource('products', FarmerProductController::class);
         
-        // Products routes
-        Route::get('/products', [FarmerProductController::class, 'index']);
-        Route::post('/products', [FarmerProductController::class, 'store']);
-        Route::get('/products/low-stock', [FarmerProductController::class, 'lowStock']);
-        Route::get('/products/{id}', [FarmerProductController::class, 'show']);
-        Route::put('/products/{id}', [FarmerProductController::class, 'update']);
-        Route::delete('/products/{id}', [FarmerProductController::class, 'destroy']);
+        // Order management routes
+        Route::get('orders', [FarmerOrderController::class, 'index']);
+        Route::get('orders/{id}', [FarmerOrderController::class, 'show']);
+        Route::put('orders/{id}/status', [FarmerOrderController::class, 'updateStatus']);
     });
-});
-
-// Admin routes (existing)
-Route::prefix('admin')->group(function () {
-    Route::get('/farms', [FarmController::class, 'index']);
-    Route::get('/farms/{id}', [FarmController::class, 'show']);
-    Route::put('/farms/{id}', [FarmController::class, 'update']);
-    Route::delete('/farms/{id}', [FarmController::class, 'destroy']);
 });
