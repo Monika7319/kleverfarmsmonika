@@ -57,7 +57,7 @@ export default function FarmerDashboardPage() {
 
       // Fetch farmer profile and products
       const [profileRes, productsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/farmer/dashboard`, { headers: authHeaders() }),
+        fetch(`${API_BASE_URL}/api/farmer/me`, { headers: authHeaders() }),
         fetch(`${API_BASE_URL}/api/farmer/products`, { headers: authHeaders() }),
       ])
 
@@ -71,12 +71,20 @@ export default function FarmerDashboardPage() {
       if (profileRes.ok) {
         const profileData = await profileRes.json()
         if (profileData.success) {
+          const farm = profileData.farm
           setFarmer({
-            id: profileData.user.id,
-            name: profileData.user.name,
-            email: profileData.user.email,
-            phone: profileData.user.phone || "Not provided",
-            farm: profileData.farm,
+            id: farm.id,
+            name: farm.ownerName,
+            email: farm.email,
+            phone: farm.phone || "Not provided",
+            farm: {
+              id: farm.id,
+              name: farm.farmName,
+              address: farm.address,
+              city: farm.city,
+              state: farm.state,
+              is_verified: farm.is_verified,
+            },
           })
         }
       }
@@ -290,7 +298,11 @@ export default function FarmerDashboardPage() {
                   <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
                     <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                       <Image
-                        src={product.image || "/placeholder.svg?height=48&width=48"}
+                        src={
+                          product.image
+                            ? `${API_BASE_URL}/products/images/${product.image}`
+                            : "/placeholder.svg?height=48&width=48"
+                        }
                         alt={product.name}
                         width={48}
                         height={48}
@@ -340,7 +352,11 @@ export default function FarmerDashboardPage() {
                   <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
                     <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                       <Image
-                        src={product.image || "/placeholder.svg?height=48&width=48"}
+                        src={
+                          product.image
+                            ? `${API_BASE_URL}/products/images/${product.image}`
+                            : "/placeholder.svg?height=48&width=48"
+                        }
                         alt={product.name}
                         width={48}
                         height={48}
