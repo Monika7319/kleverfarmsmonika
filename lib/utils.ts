@@ -13,6 +13,7 @@ export function authHeaders(): HeadersInit {
   }
 
   if (typeof window !== "undefined") {
+    // Try both token names for compatibility
     const token = localStorage.getItem("auth_token") || localStorage.getItem("farm_token")
     if (token) {
       headers["Authorization"] = `Bearer ${token}`

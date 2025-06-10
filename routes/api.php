@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FarmController;
 use App\Http\Controllers\FarmDisplayController;
-use App\Http\Controllers\FarmerDashboardController;
 use App\Http\Controllers\FarmerAuthController;
 use App\Http\Controllers\FarmerProductController;
 
@@ -24,17 +23,16 @@ Route::prefix('farmer')->group(function () {
         Route::get('/me', [FarmerAuthController::class, 'me']);
         Route::put('/profile', [FarmerAuthController::class, 'updateProfile']);
         
-        // Dashboard
-        Route::get('/dashboard', [FarmerDashboardController::class, 'index']);
+        // Dashboard stats
         Route::get('/dashboard/stats', [FarmerProductController::class, 'dashboardStats']);
         
-        // Products
+        // Products routes
         Route::get('/products', [FarmerProductController::class, 'index']);
         Route::post('/products', [FarmerProductController::class, 'store']);
+        Route::get('/products/low-stock', [FarmerProductController::class, 'lowStock']);
         Route::get('/products/{id}', [FarmerProductController::class, 'show']);
         Route::put('/products/{id}', [FarmerProductController::class, 'update']);
         Route::delete('/products/{id}', [FarmerProductController::class, 'destroy']);
-        Route::get('/products/low-stock', [FarmerProductController::class, 'lowStock']);
     });
 });
 
