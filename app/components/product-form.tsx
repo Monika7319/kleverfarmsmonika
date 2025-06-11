@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,6 +19,8 @@ interface ProductFormProps {
 }
 
 export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [formData, setFormData] = useState({
     name: initialData?.name || "",
     category: initialData?.category || "Vegetables",
@@ -35,6 +37,7 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initialData?.image ? initialData.image : null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -59,20 +62,48 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
     }
   }
 
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setErrors((prev) => ({ ...prev, image: "Please select a valid image file" }))
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, image: "Image size must be less than 5MB" }))
+      return
+    }
 
     // Store the file for later submission
     setImageFile(file)
 
     // Create a preview URL
     const imageUrl = URL.createObjectURL(file)
+    setPreviewUrl(imageUrl)
     setFormData((prev) => ({ ...prev, image: imageUrl }))
 
-    // Clear error when field is edited
+    // Clear error when file is selected
     if (errors.image) {
       setErrors((prev) => ({ ...prev, image: "" }))
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setImageFile(null)
+    setPreviewUrl(null)
+    setFormData((prev) => ({ ...prev, image: "" }))
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
   }
 
@@ -122,9 +153,6 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
     setIsSubmitting(true)
 
     try {
-      // In a real app, you would upload the image to your server/cloud storage
-      // and get back a URL to store in the database
-
       const productData: Partial<Product> = {
         name: formData.name,
         category: formData.category,
@@ -133,15 +161,17 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
         discount: Number(formData.discount || 0),
         description: formData.description || null,
         stock: Number(formData.stock || 0),
-        image: formData.image || null, // In a real app, this would be the URL from your image upload
         is_featured: formData.is_featured,
         is_seasonal: formData.is_seasonal,
       }
 
-      // If we have a new image file, in a real app we would:
-      // 1. Upload the file to server/cloud storage
-      // 2. Get back a URL
-      // 3. Set that URL in productData.image
+      // Handle image - in a real app, you would upload the file to your server
+      if (imageFile) {
+        // For now, we'll use the preview URL
+        productData.image = previewUrl
+      } else if (formData.image) {
+        productData.image = formData.image
+      }
 
       await onSubmit(productData)
     } catch (error) {
@@ -281,41 +311,41 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
       <div className="space-y-4">
         <Label className={errors.image ? "text-red-500" : ""}>Product Image</Label>
         <div className="flex items-start gap-4">
-          <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-            {formData.image ? (
+          <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border-2 border-dashed border-gray-300">
+            {previewUrl ? (
               <img
-                src={formData.image || "/placeholder.svg"}
+                src={previewUrl || "/placeholder.svg"}
                 alt="Product preview"
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
+              <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <div className="text-center">
+                  <Upload className="h-8 w-8 mx-auto mb-2" />
+                  <span className="text-xs">No image</span>
+                </div>
+              </div>
             )}
           </div>
           <div className="flex-1 space-y-2">
-            <label className="cursor-pointer">
-              <Button variant="outline" type="button" className="flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Upload Image
-              </Button>
-              <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-            </label>
-            {formData.image && (
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+            <Button type="button" variant="outline" onClick={handleUploadClick} className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              {previewUrl ? "Change Image" : "Upload Image"}
+            </Button>
+            {previewUrl && (
               <Button
                 variant="outline"
                 size="sm"
                 type="button"
-                onClick={() => {
-                  setFormData((prev) => ({ ...prev, image: "" }))
-                  setImageFile(null)
-                }}
-                className="flex items-center gap-2 text-red-600"
+                onClick={handleRemoveImage}
+                className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
               >
                 <X className="h-4 w-4" />
-                Remove
+                Remove Image
               </Button>
             )}
-            <p className="text-sm text-gray-500">Recommended: 800x800px or larger, JPG or PNG format</p>
+            <p className="text-sm text-gray-500">Recommended: 800x800px or larger, JPG or PNG format (max 5MB)</p>
             {errors.image && <p className="text-xs text-red-500">{errors.image}</p>}
           </div>
         </div>

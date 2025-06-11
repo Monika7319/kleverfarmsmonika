@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, Upload, Loader2 } from "lucide-react"
+import { ArrowLeft, Save, Upload, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,6 +32,8 @@ const categories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs", "Honey",
 export default function NewProductPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
@@ -70,15 +72,41 @@ export default function NewProductPage() {
     }
   }
 
+  const handleUploadClick = () => {
+    fileInputRef.current?.click()
+  }
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setErrors((prev) => ({ ...prev, image: "Please select a valid image file" }))
+      return
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors((prev) => ({ ...prev, image: "Image size must be less than 5MB" }))
+      return
+    }
 
     setImage(file)
     setPreviewUrl(URL.createObjectURL(file))
 
     if (errors.image) {
       setErrors((prev) => ({ ...prev, image: "" }))
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setImage(null)
+    setPreviewUrl(null)
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
   }
 
@@ -315,22 +343,48 @@ export default function NewProductPage() {
             <div className="space-y-2">
               <Label className={errors.image ? "text-red-500" : ""}>Product Image</Label>
               <div className="flex items-start gap-4">
-                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border-2 border-dashed border-gray-300">
                   {previewUrl ? (
                     <img src={previewUrl || "/placeholder.svg"} alt="Preview" className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                      <div className="text-center">
+                        <Upload className="h-8 w-8 mx-auto mb-2" />
+                        <span className="text-xs">No image</span>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div className="flex-1 space-y-2">
-                  <label className="cursor-pointer">
-                    <Button variant="outline" type="button" className="flex items-center gap-2">
-                      <Upload className="h-4 w-4" />
-                      Upload Image
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleUploadClick}
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    {previewUrl ? "Change Image" : "Upload Image"}
+                  </Button>
+                  {previewUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <X className="h-4 w-4" />
+                      Remove Image
                     </Button>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  <p className="text-sm text-gray-500">Recommended: 800×800px or larger, JPG or PNG format</p>
+                  )}
+                  <p className="text-sm text-gray-500">Recommended: 800×800px or larger, JPG or PNG format (max 5MB)</p>
                   {errors.image && <p className="text-xs text-red-500">{errors.image}</p>}
                 </div>
               </div>
