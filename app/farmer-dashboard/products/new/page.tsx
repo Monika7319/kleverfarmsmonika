@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { authHeaders, API_BASE_URL } from "@/lib/utils"
+import { authHeadersFormData, API_BASE_URL } from "@/lib/utils"
 
 interface ProductFormData {
   name: string
@@ -25,7 +25,6 @@ interface ProductFormData {
   stock: string
   is_featured: boolean
   is_seasonal: boolean
-  image: string
 }
 
 const categories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs", "Honey", "Preserves", "Other"]
@@ -44,7 +43,6 @@ export default function NewProductPage() {
     stock: "0",
     is_featured: false,
     is_seasonal: false,
-    image: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [image, setImage] = useState<File | null>(null)
@@ -140,9 +138,7 @@ export default function NewProductPage() {
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
-        headers: {
-          Authorization: authHeaders().Authorization, // Don't set Content-Type for FormData
-        },
+        headers: authHeadersFormData(),
         body: form,
       })
 
@@ -161,7 +157,7 @@ export default function NewProductPage() {
         description: `${data.product.name} has been added successfully.`,
       })
 
-      router.push("/farmer-dashboard/products")
+      router.push("/farmer-dashboard")
     } catch (err: any) {
       console.error("Error adding product:", err)
       toast({
@@ -245,7 +241,7 @@ export default function NewProductPage() {
               />
             </div>
 
-            {/* Price, Unit, Discount */}
+            {/* Price, Unit, Stock */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="price" className={errors.price ? "text-red-500" : ""}>
@@ -294,6 +290,25 @@ export default function NewProductPage() {
                 />
                 {errors.stock && <p className="text-xs text-red-500">{errors.stock}</p>}
               </div>
+            </div>
+
+            {/* Discount */}
+            <div className="space-y-2">
+              <Label htmlFor="discount" className={errors.discount ? "text-red-500" : ""}>
+                Discount (%)
+              </Label>
+              <Input
+                id="discount"
+                name="discount"
+                type="number"
+                value={formData.discount}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+                max="100"
+                className={errors.discount ? "border-red-500" : ""}
+              />
+              {errors.discount && <p className="text-xs text-red-500">{errors.discount}</p>}
             </div>
 
             {/* Image Upload */}

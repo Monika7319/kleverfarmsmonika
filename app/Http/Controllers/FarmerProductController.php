@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
 use Illuminate\Http\Request;
+use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class FarmerProductController extends Controller
 {
@@ -17,10 +17,10 @@ class FarmerProductController extends Controller
     {
         try {
             $farm = $request->user();
-
+            
             $query = Product::where('farm_id', $farm->id);
 
-            // Apply filters
+            // Apply filters if provided
             if ($request->has('category') && $request->category !== 'all') {
                 $query->where('category', $request->category);
             }
@@ -40,7 +40,7 @@ class FarmerProductController extends Controller
                         $query->where('is_seasonal', true);
                         break;
                     case 'low-stock':
-                        $query->where('stock', '<=', 10);
+                        $query->where('stock', '<=', 10)->where('stock', '>', 0);
                         break;
                     case 'out-of-stock':
                         $query->where('stock', 0);
@@ -61,16 +61,14 @@ class FarmerProductController extends Controller
             $sortOrder = $request->get('sort_order', 'desc');
             $query->orderBy($sortBy, $sortOrder);
 
-            // Get products
             $products = $query->get();
 
             return response()->json([
                 'success' => true,
-                'products' => $products
-            ], 200);
-
+                'products' => $products,
+            ]);
         } catch (\Exception $e) {
-            \Log::error('Fetch products error: ' . $e->getMessage());
+            Log::error('Fetch products error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch products',
@@ -93,9 +91,9 @@ class FarmerProductController extends Controller
                 'category' => 'required|string|max:100',
                 'price' => 'required|numeric|min:0',
                 'unit' => 'required|string|max:50',
-                'discount' => 'nullable|integer|min:0|max:100',
-                'description' => 'nullable|string',
+                'discount' => 'nullable|numeric|min:0|max:100',
                 'stock' => 'nullable|integer|min:0',
+                'description' => 'nullable|string',
                 'is_featured' => 'nullable|boolean',
                 'is_seasonal' => 'nullable|boolean',
                 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
@@ -105,18 +103,24 @@ class FarmerProductController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
-            $data = $validator->validated();
-            $data['farm_id'] = $farm->id;
-            $data['discount'] = $data['discount'] ?? 0;
-            $data['stock'] = $data['stock'] ?? 0;
-            $data['is_featured'] = filter_var($data['is_featured'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            $data['is_seasonal'] = filter_var($data['is_seasonal'] ?? false, FILTER_VALIDATE_BOOLEAN);
-            $data['is_approved'] = $farm->is_verified ? true : false; // Auto-approve if farm is verified
-            $data['is_active'] = true;
+            $data = [
+                'farm_id' => $farm->id,
+                'name' => $request->name,
+                'category' => $request->category,
+                'price' => $request->price,
+                'unit' => $request->unit,
+                'discount' => $request->discount ?? 0,
+                'stock' => $request->stock ?? 0,
+                'description' => $request->description,
+                'is_featured' => filter_var($request->is_featured ?? false, FILTER_VALIDATE_BOOLEAN),
+                'is_seasonal' => filter_var($request->is_seasonal ?? false, FILTER_VALIDATE_BOOLEAN),
+                'is_approved' => $farm->is_verified ? true : false, // Auto-approve if farm is verified
+                'is_active' => true,
+            ];
 
             // Handle image upload
             if ($request->hasFile('image')) {
@@ -140,11 +144,11 @@ class FarmerProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Product created successfully',
-                'product' => $product
+                'product' => $product,
             ], 201);
 
         } catch (\Exception $e) {
-            \Log::error('Create product error: ' . $e->getMessage());
+            Log::error('Create product error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create product',
@@ -161,13 +165,19 @@ class FarmerProductController extends Controller
     {
         try {
             $farm = $request->user();
-            $product = Product::where('farm_id', $farm->id)->findOrFail($id);
+            $product = Product::where('id', $id)->where('farm_id', $farm->id)->first();
+
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found.',
+                ], 404);
+            }
 
             return response()->json([
                 'success' => true,
-                'product' => $product
-            ], 200);
-
+                'product' => $product,
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -185,16 +195,23 @@ class FarmerProductController extends Controller
     {
         try {
             $farm = $request->user();
-            $product = Product::where('farm_id', $farm->id)->findOrFail($id);
+            $product = Product::where('id', $id)->where('farm_id', $farm->id)->first();
+
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found.',
+                ], 404);
+            }
 
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
                 'category' => 'required|string|max:100',
                 'price' => 'required|numeric|min:0',
                 'unit' => 'required|string|max:50',
-                'discount' => 'nullable|integer|min:0|max:100',
-                'description' => 'nullable|string',
+                'discount' => 'nullable|numeric|min:0|max:100',
                 'stock' => 'nullable|integer|min:0',
+                'description' => 'nullable|string',
                 'is_featured' => 'nullable|boolean',
                 'is_seasonal' => 'nullable|boolean',
                 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
@@ -204,7 +221,7 @@ class FarmerProductController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Validation failed',
-                    'errors' => $validator->errors()
+                    'errors' => $validator->errors(),
                 ], 422);
             }
 
@@ -238,11 +255,11 @@ class FarmerProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Product updated successfully',
-                'product' => $product->fresh()
-            ], 200);
+                'product' => $product->fresh(),
+            ]);
 
         } catch (\Exception $e) {
-            \Log::error('Update product error: ' . $e->getMessage());
+            Log::error('Update product error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update product',
@@ -259,7 +276,14 @@ class FarmerProductController extends Controller
     {
         try {
             $farm = $request->user();
-            $product = Product::where('farm_id', $farm->id)->findOrFail($id);
+            $product = Product::where('id', $id)->where('farm_id', $farm->id)->first();
+
+            if (!$product) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Product not found.',
+                ], 404);
+            }
 
             // Delete image if exists
             if ($product->image) {
@@ -274,10 +298,10 @@ class FarmerProductController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Product deleted successfully'
-            ], 200);
+            ]);
 
         } catch (\Exception $e) {
-            \Log::error('Delete product error: ' . $e->getMessage());
+            Log::error('Delete product error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete product',
@@ -287,45 +311,31 @@ class FarmerProductController extends Controller
     }
 
     /**
-     * Get dashboard statistics
-     * GET /api/farmer/dashboard/stats
+     * Get low stock products
+     * GET /api/farmer/products/low-stock
      */
-    public function dashboardStats(Request $request)
+    public function lowStock(Request $request)
     {
         try {
             $farm = $request->user();
-
-            // Product stats
-            $totalProducts = Product::where('farm_id', $farm->id)->count();
-            $approvedProducts = Product::where('farm_id', $farm->id)->where('is_approved', true)->count();
-            $pendingProducts = Product::where('farm_id', $farm->id)->where('is_approved', false)->count();
-            $lowStockProducts = Product::where('farm_id', $farm->id)->where('stock', '<=', 10)->count();
-            $outOfStockProducts = Product::where('farm_id', $farm->id)->where('stock', 0)->count();
-
-            // Calculate total stock value
-            $totalStockValue = Product::where('farm_id', $farm->id)
-                ->selectRaw('SUM(price * stock) as total_value')
-                ->value('total_value') ?? 0;
-
-            $stats = [
-                'total_products' => $totalProducts,
-                'approved_products' => $approvedProducts,
-                'pending_products' => $pendingProducts,
-                'low_stock_products' => $lowStockProducts,
-                'out_of_stock_products' => $outOfStockProducts,
-                'total_stock_value' => (float) $totalStockValue,
-            ];
+            $threshold = $request->get('threshold', 10);
+            
+            $products = Product::where('farm_id', $farm->id)
+                ->where('stock', '>', 0)
+                ->where('stock', '<=', $threshold)
+                ->orderBy('stock', 'asc')
+                ->get();
 
             return response()->json([
                 'success' => true,
-                'stats' => $stats
-            ], 200);
+                'products' => $products
+            ]);
 
         } catch (\Exception $e) {
-            \Log::error('Dashboard stats error: ' . $e->getMessage());
+            Log::error('Low stock products error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch dashboard stats',
+                'message' => 'Failed to fetch low stock products',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -2,13 +2,12 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use HasFactory, SoftDeletes;
+    use SoftDeletes;
 
     protected $fillable = [
         'farm_id',
@@ -17,8 +16,8 @@ class Product extends Model
         'price',
         'unit',
         'discount',
-        'description',
         'stock',
+        'description',
         'image',
         'is_featured',
         'is_seasonal',
