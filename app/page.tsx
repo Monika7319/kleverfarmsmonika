@@ -14,7 +14,7 @@ import { useDebounce } from "./hooks/use-debounce"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DemoLogin } from "./components/demo-login"
-import { DebugInfo } from "./components/debug-info"
+import { ConnectionTroubleshooter } from "./components/connection-troubleshooter"
 
 // Product interface matching your backend
 export interface Product {
@@ -88,7 +88,7 @@ export default function FarmerProductDashboard() {
   const debouncedSearch = useDebounce(searchTerm, 500)
 
   // API base URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://kleverfarms.com"
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
 
   // Get auth headers
   const getAuthHeaders = () => {
@@ -199,9 +199,14 @@ export default function FarmerProductDashboard() {
         return
       }
 
+      console.log("Fetching from:", `${API_BASE_URL}/api/farmer/products`)
+
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         headers: getAuthHeaders(),
       })
+
+      console.log("Response status:", response.status)
+      console.log("Response headers:", Object.fromEntries(response.headers.entries()))
 
       // Check if response is JSON
       const contentType = response.headers.get("content-type")
@@ -221,6 +226,7 @@ export default function FarmerProductDashboard() {
       }
 
       const data: ApiResponse = await response.json()
+      console.log("API Response:", data)
 
       if (!data.success) {
         throw new Error(data.message || "API request failed")
@@ -229,6 +235,11 @@ export default function FarmerProductDashboard() {
       setAllProducts(data.products || [])
       setIsUsingMockData(false)
       setError(null)
+
+      toast({
+        title: "Connected",
+        description: "Successfully connected to server",
+      })
     } catch (err: any) {
       console.error("Error fetching products:", err)
       loadMockData()
@@ -457,9 +468,11 @@ export default function FarmerProductDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Connection Troubleshooter */}
+        <ConnectionTroubleshooter />
+
         {/* Demo Login Component */}
         <DemoLogin />
-        <DebugInfo />
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -467,6 +480,7 @@ export default function FarmerProductDashboard() {
             <h1 className="text-3xl font-bold text-gray-900">My Products</h1>
             <p className="text-gray-600 mt-1">
               {!loading && `Showing ${products.length} of ${totalProducts} products`}
+              {isUsingMockData && " (Demo Mode)"}
             </p>
           </div>
 

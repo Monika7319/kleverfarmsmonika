@@ -1,49 +1,50 @@
 <?php
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\FarmController;
-use App\Http\Controllers\FarmCommentController;
-use App\Http\Controllers\KleverCommentController;
-use App\Http\Controllers\FarmDisplayController;
-use App\Models\Farm;
-use App\Http\Controllers\FarmerDashboardController;
-use App\Http\Controllers\FarmAuthController;
-use App\Http\Controllers\FarmerProductController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\FarmerDashboardController;
+use App\Http\Controllers\Api\FarmerProductController;
+use App\Http\Controllers\Api\FarmerOrderController;
 
-Route::get('/test-slug-fetch', function () {
-    $slug = 'krishna-in-belagavi-karnataka';
-    $farm = Farm::where('slug', $slug)->first();
-
-    if (!$farm) {
-        return response()->json(['message' => 'NOT FOUND'], 404);
-    }
-
-    return response()->json($farm);
+// Health check endpoint
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'message' => 'Laravel API is running',
+        'timestamp' => now(),
+        'version' => '1.0.0'
+    ]);
 });
 
-Route::post('/farm-comments', [KleverCommentController::class, 'store']);
-Route::get('/farm-comments/{farmId}', [KleverCommentController::class, 'show']);
+// Public routes
+Route::prefix('auth')->group(function () {
+    Route::post('/farmer/login', [AuthController::class, 'farmerLogin']);
+    Route::post('/farmer/register', [AuthController::class, 'farmerRegister']);
+});
 
-Route::get('/farms', [FarmController::class, 'index']);
-Route::post('/farms', [FarmController::class, 'store']);
-Route::patch('/farms/{id}', [FarmController::class, 'update']);
-Route::get('/farms/{id}', [FarmController::class, 'show']);
-Route::delete('/farms/{farm}', [FarmController::class, 'destroy']);
+// Protected routes
+Route::middleware(['auth:sanctum'])->group(function () {
+    // Auth routes
+    Route::prefix('auth')->group(function () {
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/user', [AuthController::class, 'user']);
+    });
 
-Route::get('/frontend/farms', [FarmDisplayController::class, 'index']);
-Route::get('/frontend/farm/{slug}', [FarmDisplayController::class, 'showBySlug']);
-
-Route::post('/auth/farmer/login', [FarmAuthController::class, 'login']);
-
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/auth/farmer/logout', [FarmAuthController::class, 'logout']);
-    Route::get('/farmer/dashboard', [FarmerDashboardController::class, 'index']);
-
-    // Product APIs - Order matters! Specific routes before parameterized ones
-    Route::get('/farmer/products/low-stock', [FarmerProductController::class, 'lowStock']);
-    Route::get('/farmer/products', [FarmerProductController::class, 'index']);
-    Route::post('/farmer/products', [FarmerProductController::class, 'store']);
-    Route::get('/farmer/products/{id}', [FarmerProductController::class, 'show']);
-    Route::put('/farmer/products/{id}', [FarmerProductController::class, 'update']);
-    Route::delete('/farmer/products/{id}', [FarmerProductController::class, 'destroy']);
+    // Farmer routes
+    Route::prefix('farmer')->group(function () {
+        Route::get('/dashboard', [FarmerDashboardController::class, 'index']);
+        
+        // Products
+        Route::get('/products', [FarmerProductController::class, 'index']);
+        Route::post('/products', [FarmerProductController::class, 'store']);
+        Route::get('/products/{product}', [FarmerProductController::class, 'show']);
+        Route::put('/products/{product}', [FarmerProductController::class, 'update']);
+        Route::delete('/products/{product}', [FarmerProductController::class, 'destroy']);
+        
+        // Orders
+        Route::get('/orders', [FarmerOrderController::class, 'index']);
+        Route::get('/orders/{order}', [FarmerOrderController::class, 'show']);
+        Route::put('/orders/{order}/status', [FarmerOrderController::class, 'updateStatus']);
+    });
 });
