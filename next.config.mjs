@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // Remove the deprecated appDir option - it's now default in Next.js 15
+    // Remove the deprecated appDir option
   },
   eslint: {
     ignoreDuringBuilds: true,

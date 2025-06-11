@@ -185,6 +185,7 @@ export default function NewProductPage() {
         description: `${data.product.name} has been added successfully.`,
       })
 
+      // Redirect to dashboard to see the new product
       router.push("/farmer-dashboard")
     } catch (err: any) {
       console.error("Error adding product:", err)

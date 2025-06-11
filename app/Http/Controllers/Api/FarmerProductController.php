@@ -8,6 +8,7 @@ use App\Models\Product;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class FarmerProductController extends Controller
 {
@@ -34,22 +35,22 @@ class FarmerProductController extends Controller
             if ($request->has('status')) {
                 switch ($request->status) {
                     case 'approved':
-                        $query->approved();
+                        $query->where('is_approved', true);
                         break;
                     case 'pending':
-                        $query->pending();
+                        $query->where('is_approved', false);
                         break;
                     case 'featured':
-                        $query->featured();
+                        $query->where('is_featured', true);
                         break;
                     case 'seasonal':
-                        $query->seasonal();
+                        $query->where('is_seasonal', true);
                         break;
                     case 'low-stock':
-                        $query->lowStock();
+                        $query->where('stock', '>', 0)->where('stock', '<=', 10);
                         break;
                     case 'out-of-stock':
-                        $query->outOfStock();
+                        $query->where('stock', 0);
                         break;
                 }
             }
@@ -83,6 +84,7 @@ class FarmerProductController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Product fetch error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch products',
@@ -112,8 +114,8 @@ class FarmerProductController extends Controller
                 'discount' => 'nullable|integer|min:0|max:100',
                 'description' => 'nullable|string',
                 'stock' => 'nullable|integer|min:0',
-                'is_featured' => 'boolean',
-                'is_seasonal' => 'boolean',
+                'is_featured' => 'nullable',
+                'is_seasonal' => 'nullable',
                 'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
 
@@ -129,9 +131,9 @@ class FarmerProductController extends Controller
             $data['farm_id'] = $farm->id;
             $data['discount'] = $data['discount'] ?? 0;
             $data['stock'] = $data['stock'] ?? 0;
-            $data['is_featured'] = $data['is_featured'] ?? false;
-            $data['is_seasonal'] = $data['is_seasonal'] ?? false;
-            $data['is_approved'] = $farm->is_verified ?? false; // Auto-approve if farm is verified
+            $data['is_featured'] = filter_var($data['is_featured'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $data['is_seasonal'] = filter_var($data['is_seasonal'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $data['is_approved'] = $farm->is_verified ?? false;
             $data['is_active'] = true;
 
             // Handle image upload
@@ -144,13 +146,20 @@ class FarmerProductController extends Controller
 
             $product = Product::create($data);
 
+            Log::info('Product created successfully', ['product_id' => $product->id, 'farm_id' => $farm->id]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Product created successfully',
-                'product' => $product
+                'product' => $product->fresh()
             ], 201);
 
         } catch (\Exception $e) {
+            Log::error('Product creation error: ' . $e->getMessage(), [
+                'user_id' => Auth::id(),
+                'request_data' => $request->except(['image'])
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to create product',
@@ -248,6 +257,7 @@ class FarmerProductController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Product update error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to update product',
@@ -284,6 +294,7 @@ class FarmerProductController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Product deletion error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to delete product',
@@ -308,7 +319,8 @@ class FarmerProductController extends Controller
             $threshold = $request->get('threshold', 10);
             
             $products = Product::where('farm_id', $farm->id)
-                ->lowStock($threshold)
+                ->where('stock', '>', 0)
+                ->where('stock', '<=', $threshold)
                 ->orderBy('stock', 'asc')
                 ->get();
 
@@ -318,6 +330,7 @@ class FarmerProductController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
+            Log::error('Low stock fetch error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to fetch low stock products',
