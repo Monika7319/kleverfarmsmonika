@@ -5,18 +5,57 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-// Add this function to handle farmer login redirect
-export const redirectToFarmerDashboard = () => {
-  if (typeof window !== "undefined") {
-    window.location.href = "/farmer-dashboard"
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"
+
+// Get auth headers for JSON requests
+export const authHeaders = () => {
+  const headers: HeadersInit = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
   }
+
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("auth_token")
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+  }
+
+  return headers
 }
 
-// Add this function to check if user is farmer and redirect accordingly
-export const handleFarmerAuth = (userData: any) => {
-  if (userData.role === "farmer" || userData.user_type === "farmer") {
-    redirectToFarmerDashboard()
-    return true
+// Get auth headers for FormData requests (don't set Content-Type)
+export const authHeadersFormData = () => {
+  const headers: HeadersInit = {
+    Accept: "application/json",
+    // Don't set Content-Type for FormData - browser will set it automatically
   }
-  return false
+
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("auth_token")
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`
+    }
+  }
+
+  return headers
+}
+
+// Format currency
+export const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+  }).format(amount)
+}
+
+// Format date and time
+export const formatDateTime = (dateString: string): string => {
+  return new Intl.DateTimeFormat("en-IN", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(dateString))
 }
