@@ -84,7 +84,7 @@ export default function FarmerProductDashboard() {
     return headers
   }
 
-  // Use mock data when API fails
+  // Use mock data when API fails - Fixed to prevent infinite loops
   const useMockData = useCallback(() => {
     // Mock categories
     const mockCategories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs"]
@@ -155,107 +155,104 @@ export default function FarmerProductDashboard() {
     })
   }, [categoryFilter, currentPage, debouncedSearch, perPage, sortBy, sortOrder, toast])
 
-  // Fetch products with filters, sorting and pagination
+  // Fetch products with filters, sorting and pagination - Fixed dependencies
   const fetchProducts = useCallback(async () => {
-    const fetchData = async () => {
-      try {
-        setLoading(true)
-        setError(null)
+    const token = localStorage.getItem("token")
+    try {
+      setLoading(true)
+      setError(null)
 
-        // Check if we have authentication token
-        const token = localStorage.getItem("token")
-        if (!token) {
-          console.log("No authentication token found, using mock data")
+      // Check if we have authentication token
+
+      if (!token) {
+        console.log("No authentication token found, using mock data")
+        useMockData()
+        return
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
+        headers: getAuthHeaders(),
+      })
+
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server returned non-JSON response. API might be down or misconfigured.")
+      }
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Clear invalid token and use mock data
+          localStorage.removeItem("token")
+          console.log("Authentication failed, using mock data")
           useMockData()
           return
         }
-
-        const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
-          headers: getAuthHeaders(),
-        })
-
-        // Check if response is JSON
-        const contentType = response.headers.get("content-type")
-        if (!contentType || !contentType.includes("application/json")) {
-          throw new Error("Server returned non-JSON response. API might be down or misconfigured.")
-        }
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            // Clear invalid token and use mock data
-            localStorage.removeItem("token")
-            console.log("Authentication failed, using mock data")
-            useMockData()
-            return
-          }
-          const errorData = await response.json()
-          throw new Error(errorData.message || `HTTP error ${response.status}`)
-        }
-
-        const data: ApiResponse = await response.json()
-
-        if (!data.success) {
-          throw new Error(data.message || "API request failed")
-        }
-
-        let products = data.products || []
-
-        // Apply client-side filtering and sorting
-        if (debouncedSearch) {
-          products = products.filter(
-            (p) =>
-              p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-              (p.description && p.description.toLowerCase().includes(debouncedSearch.toLowerCase())),
-          )
-        }
-
-        if (categoryFilter !== "all") {
-          products = products.filter((p) => p.category === categoryFilter)
-        }
-
-        // Sort products
-        products.sort((a, b) => {
-          if (sortBy === "price") {
-            return sortOrder === "asc" ? a.price - b.price : b.price - a.price
-          } else if (sortBy === "name") {
-            return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
-          } else if (sortBy === "stock") {
-            return sortOrder === "asc" ? a.stock - b.stock : b.stock - a.stock
-          } else {
-            // Default sort by created_at
-            return sortOrder === "asc"
-              ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-              : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          }
-        })
-
-        // Client-side pagination
-        const start = (currentPage - 1) * perPage
-        const end = start + perPage
-        const paginatedProducts = products.slice(start, end)
-
-        setProducts(paginatedProducts)
-        setTotalProducts(products.length)
-        setTotalPages(Math.ceil(products.length / perPage))
-
-        // Extract unique categories
-        const uniqueCategories = Array.from(new Set(data.products.map((p) => p.category)))
-        setCategories(uniqueCategories)
-
-        setError(null)
-      } catch (err: any) {
-        console.error("Error fetching products:", err)
-        setError(err.message)
-
-        // Always use mock data when there's an error
-        useMockData()
-      } finally {
-        setLoading(false)
-        setInitialLoading(false)
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP error ${response.status}`)
       }
-    }
 
-    fetchData()
+      const data: ApiResponse = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "API request failed")
+      }
+
+      let products = data.products || []
+
+      // Apply client-side filtering and sorting
+      if (debouncedSearch) {
+        products = products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+            (p.description && p.description.toLowerCase().includes(debouncedSearch.toLowerCase())),
+        )
+      }
+
+      if (categoryFilter !== "all") {
+        products = products.filter((p) => p.category === categoryFilter)
+      }
+
+      // Sort products
+      products.sort((a, b) => {
+        if (sortBy === "price") {
+          return sortOrder === "asc" ? a.price - b.price : b.price - a.price
+        } else if (sortBy === "name") {
+          return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+        } else if (sortBy === "stock") {
+          return sortOrder === "asc" ? a.stock - b.stock : b.stock - a.stock
+        } else {
+          // Default sort by created_at
+          return sortOrder === "asc"
+            ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+            : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        }
+      })
+
+      // Client-side pagination
+      const start = (currentPage - 1) * perPage
+      const end = start + perPage
+      const paginatedProducts = products.slice(start, end)
+
+      setProducts(paginatedProducts)
+      setTotalProducts(products.length)
+      setTotalPages(Math.ceil(products.length / perPage))
+
+      // Extract unique categories
+      const uniqueCategories = Array.from(new Set(data.products.map((p) => p.category)))
+      setCategories(uniqueCategories)
+
+      setError(null)
+    } catch (err: any) {
+      console.error("Error fetching products:", err)
+      setError(err.message)
+
+      // Always use mock data when there's an error
+      useMockData()
+    } finally {
+      setLoading(false)
+      setInitialLoading(false)
+    }
   }, [API_BASE_URL, currentPage, perPage, sortBy, sortOrder, debouncedSearch, categoryFilter, useMockData])
 
   // Fetch products when dependencies change
