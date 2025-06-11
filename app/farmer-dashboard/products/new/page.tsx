@@ -152,6 +152,19 @@ export default function NewProductPage() {
 
     setIsSubmitting(true)
     try {
+      // Check if we have a valid token
+      const token =
+        localStorage.getItem("token") || localStorage.getItem("auth_token") || localStorage.getItem("farm_token")
+      if (!token) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in first.",
+          variant: "destructive",
+        })
+        router.push("/")
+        return
+      }
+
       const form = new FormData()
       form.append("name", formData.name)
       form.append("category", formData.category)
@@ -162,7 +175,12 @@ export default function NewProductPage() {
       form.append("description", formData.description)
       form.append("is_featured", String(formData.is_featured))
       form.append("is_seasonal", String(formData.is_seasonal))
-      if (image) form.append("image", image)
+      if (image) {
+        form.append("image", image)
+      }
+
+      console.log("Submitting to:", `${API_BASE_URL}/api/farmer/products`)
+      console.log("Form data:", Object.fromEntries(form.entries()))
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
@@ -170,27 +188,51 @@ export default function NewProductPage() {
         body: form,
       })
 
+      console.log("Response status:", response.status)
+      console.log("Response headers:", Object.fromEntries(response.headers.entries()))
+
       if (!response.ok) {
         if (response.status === 401) {
-          router.push("/login")
+          localStorage.removeItem("token")
+          localStorage.removeItem("auth_token")
+          localStorage.removeItem("farm_token")
+          toast({
+            title: "Session Expired",
+            description: "Please log in again.",
+            variant: "destructive",
+          })
+          router.push("/")
           return
         }
-        const errorData = await response.json()
-        throw new Error(errorData.message || `HTTP error ${response.status}`)
+
+        const errorText = await response.text()
+        console.error("Error response:", errorText)
+
+        try {
+          const errorData = JSON.parse(errorText)
+          throw new Error(errorData.message || `HTTP error ${response.status}`)
+        } catch {
+          throw new Error(`Server error: ${response.status}`)
+        }
       }
 
       const data = await response.json()
-      toast({
-        title: "Product Added",
-        description: `${data.product.name} has been added successfully.`,
-      })
+      console.log("Success response:", data)
 
-      router.push("/farmer-dashboard")
+      if (data.success) {
+        toast({
+          title: "Product Added",
+          description: `${data.product.name} has been added successfully.`,
+        })
+        router.push("/farmer-dashboard/products")
+      } else {
+        throw new Error(data.message || "Failed to add product")
+      }
     } catch (err: any) {
       console.error("Error adding product:", err)
       toast({
         title: "Error",
-        description: err.message,
+        description: err.message || "Failed to add product",
         variant: "destructive",
       })
     } finally {

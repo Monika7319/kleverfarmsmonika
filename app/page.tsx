@@ -14,6 +14,7 @@ import { useDebounce } from "./hooks/use-debounce"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { DemoLogin } from "./components/demo-login"
+import { DebugInfo } from "./components/debug-info"
 
 // Product interface matching your backend
 export interface Product {
@@ -458,6 +459,7 @@ export default function FarmerProductDashboard() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Demo Login Component */}
         <DemoLogin />
+        <DebugInfo />
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
