@@ -8,12 +8,12 @@ export const metadata: Metadata = {
   description: "Manage your farm, products, orders, and customers",
 }
 
-export default function FarmerDashboardLayout({ children }: { children: React.ReactNode }) {
+export default function FarmerLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background">
-      <FarmerSidebar />
-      <div className="md:pl-64">
-        <main className="flex-1 p-4 md:p-6 lg:p-8">{children}</main>
+    <div className="flex min-h-screen flex-col">
+      <div className="flex flex-1">
+        <FarmerSidebar />
+        <main className="flex-1 p-6 md:p-8 pt-6">{children}</main>
       </div>
       <Toaster />
     </div>
