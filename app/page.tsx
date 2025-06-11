@@ -13,6 +13,7 @@ import { Pagination } from "./components/pagination"
 import { useDebounce } from "./hooks/use-debounce"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { DemoLogin } from "./components/demo-login"
 
 // Product interface matching your backend
 export interface Product {
@@ -36,6 +37,7 @@ export interface Product {
 
 // API response interface
 interface ApiResponse {
+  success: boolean
   products: Product[]
   message?: string
 }
@@ -62,8 +64,8 @@ export default function FarmerProductDashboard() {
   const { toast } = useToast()
   const debouncedSearch = useDebounce(searchTerm, 500)
 
-  // API base URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"
+  // API base URL - Updated to handle different environments
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://kleverfarms.com"
 
   // Get auth headers
   const getAuthHeaders = () => {
@@ -73,7 +75,7 @@ export default function FarmerProductDashboard() {
     }
 
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("auth_token") // Changed from farm_token
+      const token = localStorage.getItem("token")
       if (token) {
         headers["Authorization"] = `Bearer ${token}`
       }
@@ -147,115 +149,114 @@ export default function FarmerProductDashboard() {
     setTotalPages(Math.ceil(filtered.length / perPage))
 
     toast({
-      title: "Using Demo Data",
-      description: "Could not connect to server. Showing sample products.",
+      title: "Demo Mode",
+      description: "Could not connect to server. Showing sample products for demonstration.",
       variant: "default",
     })
   }, [categoryFilter, currentPage, debouncedSearch, perPage, sortBy, sortOrder, toast])
 
   // Fetch products with filters, sorting and pagination
   const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true)
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        setError(null)
 
-      const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
-        headers: getAuthHeaders(),
-      })
-
-      // Check if response is JSON
-      const contentType = response.headers.get("content-type")
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Server returned non-JSON response. API might be down or misconfigured.")
-      }
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          // Redirect to login if unauthorized
-          window.location.href = "/login"
+        // Check if we have authentication token
+        const token = localStorage.getItem("token")
+        if (!token) {
+          console.log("No authentication token found, using mock data")
+          useMockData()
           return
         }
-        const errorData = await response.json()
-        throw new Error(errorData.message || `HTTP error ${response.status}`)
-      }
 
-      const data: ApiResponse = await response.json()
-
-      let products = data.products || []
-
-      // Apply client-side filtering and sorting
-      if (debouncedSearch) {
-        products = products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-            (p.description && p.description.toLowerCase().includes(debouncedSearch.toLowerCase())),
-        )
-      }
-
-      if (categoryFilter !== "all") {
-        products = products.filter((p) => p.category === categoryFilter)
-      }
-
-      // Sort products
-      products.sort((a, b) => {
-        if (sortBy === "price") {
-          return sortOrder === "asc" ? a.price - b.price : b.price - a.price
-        } else if (sortBy === "name") {
-          return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
-        } else if (sortBy === "stock") {
-          return sortOrder === "asc" ? a.stock - b.stock : b.stock - a.stock
-        } else {
-          // Default sort by created_at
-          return sortOrder === "asc"
-            ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        }
-      })
-
-      // Client-side pagination
-      const start = (currentPage - 1) * perPage
-      const end = start + perPage
-      const paginatedProducts = products.slice(start, end)
-
-      setProducts(paginatedProducts)
-      setTotalProducts(products.length)
-      setTotalPages(Math.ceil(products.length / perPage))
-
-      // Extract unique categories
-      const uniqueCategories = Array.from(new Set(data.products.map((p) => p.category)))
-      setCategories(uniqueCategories)
-
-      setError(null)
-    } catch (err: any) {
-      console.error("Error fetching products:", err)
-      setError(err.message)
-
-      // Use mock data in development
-      if (process.env.NODE_ENV === "development") {
-        //useMockData()
-      }
-    } finally {
-      setLoading(false)
-      setInitialLoading(false)
-    }
-  }, [API_BASE_URL, currentPage, perPage, sortBy, sortOrder, debouncedSearch, categoryFilter])
-
-  const handleApiError = useCallback(
-    (err: any) => {
-      console.error("API error:", err)
-      setError(err.message)
-
-      if (process.env.NODE_ENV === "development") {
-        useMockData()
-      } else {
-        toast({
-          title: "Error",
-          description: err.message,
-          variant: "destructive",
+        const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
+          headers: getAuthHeaders(),
         })
+
+        // Check if response is JSON
+        const contentType = response.headers.get("content-type")
+        if (!contentType || !contentType.includes("application/json")) {
+          throw new Error("Server returned non-JSON response. API might be down or misconfigured.")
+        }
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Clear invalid token and use mock data
+            localStorage.removeItem("token")
+            console.log("Authentication failed, using mock data")
+            useMockData()
+            return
+          }
+          const errorData = await response.json()
+          throw new Error(errorData.message || `HTTP error ${response.status}`)
+        }
+
+        const data: ApiResponse = await response.json()
+
+        if (!data.success) {
+          throw new Error(data.message || "API request failed")
+        }
+
+        let products = data.products || []
+
+        // Apply client-side filtering and sorting
+        if (debouncedSearch) {
+          products = products.filter(
+            (p) =>
+              p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+              (p.description && p.description.toLowerCase().includes(debouncedSearch.toLowerCase())),
+          )
+        }
+
+        if (categoryFilter !== "all") {
+          products = products.filter((p) => p.category === categoryFilter)
+        }
+
+        // Sort products
+        products.sort((a, b) => {
+          if (sortBy === "price") {
+            return sortOrder === "asc" ? a.price - b.price : b.price - a.price
+          } else if (sortBy === "name") {
+            return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+          } else if (sortBy === "stock") {
+            return sortOrder === "asc" ? a.stock - b.stock : b.stock - a.stock
+          } else {
+            // Default sort by created_at
+            return sortOrder === "asc"
+              ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+              : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          }
+        })
+
+        // Client-side pagination
+        const start = (currentPage - 1) * perPage
+        const end = start + perPage
+        const paginatedProducts = products.slice(start, end)
+
+        setProducts(paginatedProducts)
+        setTotalProducts(products.length)
+        setTotalPages(Math.ceil(products.length / perPage))
+
+        // Extract unique categories
+        const uniqueCategories = Array.from(new Set(data.products.map((p) => p.category)))
+        setCategories(uniqueCategories)
+
+        setError(null)
+      } catch (err: any) {
+        console.error("Error fetching products:", err)
+        setError(err.message)
+
+        // Always use mock data when there's an error
+        useMockData()
+      } finally {
+        setLoading(false)
+        setInitialLoading(false)
       }
-    },
-    [toast, useMockData],
-  )
+    }
+
+    fetchData()
+  }, [API_BASE_URL, currentPage, perPage, sortBy, sortOrder, debouncedSearch, categoryFilter, useMockData])
 
   // Fetch products when dependencies change
   useEffect(() => {
@@ -267,6 +268,16 @@ export default function FarmerProductDashboard() {
     try {
       setLoading(true)
 
+      const token = localStorage.getItem("token")
+      if (!token) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to add products.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
         headers: getAuthHeaders(),
@@ -275,7 +286,12 @@ export default function FarmerProductDashboard() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          window.location.href = "/login"
+          localStorage.removeItem("token")
+          toast({
+            title: "Session Expired",
+            description: "Please log in again.",
+            variant: "destructive",
+          })
           return
         }
         const errorData = await response.json()
@@ -283,6 +299,10 @@ export default function FarmerProductDashboard() {
       }
 
       const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to add product")
+      }
 
       // Optimistic UI update
       setProducts((prev) => [data.product, ...prev])
@@ -314,6 +334,16 @@ export default function FarmerProductDashboard() {
     try {
       setLoading(true)
 
+      const token = localStorage.getItem("token")
+      if (!token) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to edit products.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/farmer/products/${editingProduct.id}`, {
         method: "PUT",
         headers: getAuthHeaders(),
@@ -322,7 +352,12 @@ export default function FarmerProductDashboard() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          window.location.href = "/login"
+          localStorage.removeItem("token")
+          toast({
+            title: "Session Expired",
+            description: "Please log in again.",
+            variant: "destructive",
+          })
           return
         }
         const errorData = await response.json()
@@ -330,6 +365,10 @@ export default function FarmerProductDashboard() {
       }
 
       const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to update product")
+      }
 
       // Optimistic UI update
       setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? data.product : p)))
@@ -358,6 +397,16 @@ export default function FarmerProductDashboard() {
     try {
       setLoading(true)
 
+      const token = localStorage.getItem("token")
+      if (!token) {
+        toast({
+          title: "Authentication Required",
+          description: "Please log in to delete products.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/farmer/products/${deletingProduct.id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
@@ -365,11 +414,22 @@ export default function FarmerProductDashboard() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          window.location.href = "/login"
+          localStorage.removeItem("token")
+          toast({
+            title: "Session Expired",
+            description: "Please log in again.",
+            variant: "destructive",
+          })
           return
         }
         const errorData = await response.json()
         throw new Error(errorData.message || `HTTP error ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (!data.success) {
+        throw new Error(data.message || "Failed to delete product")
       }
 
       // Optimistic UI update
@@ -423,6 +483,9 @@ export default function FarmerProductDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
+        {/* Demo Login Component */}
+        <DemoLogin />
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>

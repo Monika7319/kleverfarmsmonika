@@ -9,6 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 export function authHeaders(): HeadersInit {
   const headers: HeadersInit = {
     Accept: "application/json",
+    "Content-Type": "application/json",
   }
 
   if (typeof window !== "undefined") {
@@ -38,8 +39,15 @@ export function authHeadersFormData(): HeadersInit {
   return headers
 }
 
-// API base URL
-export const API_BASE_URL = "https://kleverfarms.com"
+// API base URL - Updated to handle different environments
+export const API_BASE_URL = (() => {
+  if (typeof window !== "undefined") {
+    // Client-side: use environment variable or fallback to current origin
+    return process.env.NEXT_PUBLIC_API_BASE_URL || window.location.origin
+  }
+  // Server-side: use environment variable or default
+  return process.env.NEXT_PUBLIC_API_BASE_URL || "https://kleverfarms.com"
+})()
 
 // Format currency
 export function formatCurrency(amount: number): string {
