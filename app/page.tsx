@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { Plus, Search, Filter, Package, ArrowUpDown, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,9 +42,33 @@ interface ApiResponse {
   message?: string
 }
 
+// Mock data generator - moved outside component to prevent recreation
+const generateMockProducts = (): Product[] => {
+  const mockCategories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs"]
+  return Array.from({ length: 12 }, (_, i) => ({
+    id: i + 1,
+    farm_id: 1,
+    name: `Product ${i + 1}`,
+    category: mockCategories[Math.floor(Math.random() * mockCategories.length)],
+    price: Math.floor(Math.random() * 500) + 10,
+    unit: ["kg", "g", "piece", "dozen", "liter"][Math.floor(Math.random() * 5)],
+    discount: Math.floor(Math.random() * 30),
+    description: `This is a sample product description for Product ${i + 1}. It's a placeholder for when the API is unavailable.`,
+    stock: Math.floor(Math.random() * 100),
+    image: `/placeholder.svg?height=400&width=400&query=product${i + 1}`,
+    is_featured: Math.random() > 0.7,
+    is_seasonal: Math.random() > 0.7,
+    is_approved: true,
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }))
+}
+
 export default function FarmerProductDashboard() {
   // State
-  const [products, setProducts] = useState<Product[]>([])
+  const [allProducts, setAllProducts] = useState<Product[]>([]) // Store all products
+  const [products, setProducts] = useState<Product[]>([]) // Displayed products after filtering/sorting
   const [loading, setLoading] = useState(true)
   const [initialLoading, setInitialLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -55,16 +79,14 @@ export default function FarmerProductDashboard() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null)
-  const [categories, setCategories] = useState<string[]>([])
   const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalProducts, setTotalProducts] = useState(0)
   const [perPage, setPerPage] = useState(9)
+  const [isUsingMockData, setIsUsingMockData] = useState(false)
 
   const { toast } = useToast()
   const debouncedSearch = useDebounce(searchTerm, 500)
 
-  // API base URL - Updated to handle different environments
+  // API base URL
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://kleverfarms.com"
 
   // Get auth headers
@@ -84,35 +106,16 @@ export default function FarmerProductDashboard() {
     return headers
   }
 
-  // Use mock data when API fails - Fixed to prevent infinite loops
-  const useMockData = useCallback(() => {
-    // Mock categories
-    const mockCategories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs"]
-    setCategories(mockCategories)
+  // Extract categories from products
+  const categories = useMemo(() => {
+    return Array.from(new Set(allProducts.map((p) => p.category)))
+  }, [allProducts])
 
-    // Generate mock products
-    const mockProducts: Product[] = Array.from({ length: 12 }, (_, i) => ({
-      id: i + 1,
-      farm_id: 1,
-      name: `Product ${i + 1}`,
-      category: mockCategories[Math.floor(Math.random() * mockCategories.length)],
-      price: Math.floor(Math.random() * 500) + 10,
-      unit: ["kg", "g", "piece", "dozen", "liter"][Math.floor(Math.random() * 5)],
-      discount: Math.floor(Math.random() * 30),
-      description: `This is a sample product description for Product ${i + 1}. It's a placeholder for when the API is unavailable.`,
-      stock: Math.floor(Math.random() * 100),
-      image: `/placeholder.svg?height=400&width=400&query=product${i + 1}`,
-      is_featured: Math.random() > 0.7,
-      is_seasonal: Math.random() > 0.7,
-      is_approved: true,
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }))
+  // Filter and sort products
+  const filteredAndSortedProducts = useMemo(() => {
+    let filtered = [...allProducts]
 
-    // Filter and sort mock products
-    let filtered = [...mockProducts]
-
+    // Apply search filter
     if (debouncedSearch) {
       filtered = filtered.filter(
         (p) =>
@@ -121,16 +124,19 @@ export default function FarmerProductDashboard() {
       )
     }
 
+    // Apply category filter
     if (categoryFilter !== "all") {
       filtered = filtered.filter((p) => p.category === categoryFilter)
     }
 
-    // Sort
+    // Sort products
     filtered.sort((a, b) => {
       if (sortBy === "price") {
         return sortOrder === "asc" ? a.price - b.price : b.price - a.price
       } else if (sortBy === "name") {
         return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+      } else if (sortBy === "stock") {
+        return sortOrder === "asc" ? a.stock - b.stock : b.stock - a.stock
       } else {
         // Default sort by created_at
         return sortOrder === "asc"
@@ -139,34 +145,56 @@ export default function FarmerProductDashboard() {
       }
     })
 
-    // Paginate
+    return filtered
+  }, [allProducts, debouncedSearch, categoryFilter, sortBy, sortOrder])
+
+  // Paginate filtered products
+  const paginatedProducts = useMemo(() => {
     const start = (currentPage - 1) * perPage
     const end = start + perPage
-    const paginatedProducts = filtered.slice(start, end)
+    return filteredAndSortedProducts.slice(start, end)
+  }, [filteredAndSortedProducts, currentPage, perPage])
 
+  // Calculate pagination info
+  const totalProducts = filteredAndSortedProducts.length
+  const totalPages = Math.ceil(totalProducts / perPage)
+
+  // Update displayed products when pagination changes
+  useEffect(() => {
     setProducts(paginatedProducts)
-    setTotalProducts(filtered.length)
-    setTotalPages(Math.ceil(filtered.length / perPage))
+  }, [paginatedProducts])
 
-    toast({
-      title: "Demo Mode",
-      description: "Could not connect to server. Showing sample products for demonstration.",
-      variant: "default",
-    })
-  }, [categoryFilter, currentPage, debouncedSearch, perPage, sortBy, sortOrder, toast])
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearch, categoryFilter, sortBy, sortOrder])
 
-  // Fetch products with filters, sorting and pagination - Fixed dependencies
+  // Load mock data
+  const loadMockData = useCallback(() => {
+    const mockProducts = generateMockProducts()
+    setAllProducts(mockProducts)
+    setIsUsingMockData(true)
+    setError("Could not connect to server. Showing sample products for demonstration.")
+
+    if (!isUsingMockData) {
+      toast({
+        title: "Demo Mode",
+        description: "Could not connect to server. Showing sample products for demonstration.",
+        variant: "default",
+      })
+    }
+  }, [isUsingMockData, toast])
+
+  // Fetch products from API
   const fetchProducts = useCallback(async () => {
-    const token = localStorage.getItem("token")
     try {
       setLoading(true)
       setError(null)
 
-      // Check if we have authentication token
-
+      const token = localStorage.getItem("token")
       if (!token) {
         console.log("No authentication token found, using mock data")
-        useMockData()
+        loadMockData()
         return
       }
 
@@ -182,10 +210,9 @@ export default function FarmerProductDashboard() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Clear invalid token and use mock data
           localStorage.removeItem("token")
           console.log("Authentication failed, using mock data")
-          useMockData()
+          loadMockData()
           return
         }
         const errorData = await response.json()
@@ -198,67 +225,22 @@ export default function FarmerProductDashboard() {
         throw new Error(data.message || "API request failed")
       }
 
-      let products = data.products || []
-
-      // Apply client-side filtering and sorting
-      if (debouncedSearch) {
-        products = products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-            (p.description && p.description.toLowerCase().includes(debouncedSearch.toLowerCase())),
-        )
-      }
-
-      if (categoryFilter !== "all") {
-        products = products.filter((p) => p.category === categoryFilter)
-      }
-
-      // Sort products
-      products.sort((a, b) => {
-        if (sortBy === "price") {
-          return sortOrder === "asc" ? a.price - b.price : b.price - a.price
-        } else if (sortBy === "name") {
-          return sortOrder === "asc" ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
-        } else if (sortBy === "stock") {
-          return sortOrder === "asc" ? a.stock - b.stock : b.stock - a.stock
-        } else {
-          // Default sort by created_at
-          return sortOrder === "asc"
-            ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-            : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        }
-      })
-
-      // Client-side pagination
-      const start = (currentPage - 1) * perPage
-      const end = start + perPage
-      const paginatedProducts = products.slice(start, end)
-
-      setProducts(paginatedProducts)
-      setTotalProducts(products.length)
-      setTotalPages(Math.ceil(products.length / perPage))
-
-      // Extract unique categories
-      const uniqueCategories = Array.from(new Set(data.products.map((p) => p.category)))
-      setCategories(uniqueCategories)
-
+      setAllProducts(data.products || [])
+      setIsUsingMockData(false)
       setError(null)
     } catch (err: any) {
       console.error("Error fetching products:", err)
-      setError(err.message)
-
-      // Always use mock data when there's an error
-      useMockData()
+      loadMockData()
     } finally {
       setLoading(false)
       setInitialLoading(false)
     }
-  }, [API_BASE_URL, currentPage, perPage, sortBy, sortOrder, debouncedSearch, categoryFilter, useMockData])
+  }, [API_BASE_URL, loadMockData])
 
-  // Fetch products when dependencies change
+  // Initial data fetch
   useEffect(() => {
     fetchProducts()
-  }, [fetchProducts])
+  }, []) // Only run once on mount
 
   // Handle add product
   const handleAddProduct = async (productData: Partial<Product>) => {
@@ -301,17 +283,14 @@ export default function FarmerProductDashboard() {
         throw new Error(data.message || "Failed to add product")
       }
 
-      // Optimistic UI update
-      setProducts((prev) => [data.product, ...prev])
+      // Update all products
+      setAllProducts((prev) => [data.product, ...prev])
 
       setIsAddModalOpen(false)
       toast({
         title: "Product Added",
         description: `${data.product.name} has been added successfully.`,
       })
-
-      // Refresh products to get updated list
-      fetchProducts()
     } catch (err: any) {
       console.error("Error adding product:", err)
       toast({
@@ -367,8 +346,8 @@ export default function FarmerProductDashboard() {
         throw new Error(data.message || "Failed to update product")
       }
 
-      // Optimistic UI update
-      setProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? data.product : p)))
+      // Update all products
+      setAllProducts((prev) => prev.map((p) => (p.id === editingProduct.id ? data.product : p)))
 
       setEditingProduct(null)
       toast({
@@ -429,8 +408,8 @@ export default function FarmerProductDashboard() {
         throw new Error(data.message || "Failed to delete product")
       }
 
-      // Optimistic UI update
-      setProducts((prev) => prev.filter((p) => p.id !== deletingProduct.id))
+      // Update all products
+      setAllProducts((prev) => prev.filter((p) => p.id !== deletingProduct.id))
 
       setDeletingProduct(null)
       toast({
@@ -439,11 +418,8 @@ export default function FarmerProductDashboard() {
       })
 
       // If we deleted the last item on the page, go to previous page
-      if (products.length === 1 && currentPage > 1) {
+      if (paginatedProducts.length === 1 && currentPage > 1) {
         setCurrentPage((prev) => prev - 1)
-      } else {
-        // Otherwise just refresh the current page
-        fetchProducts()
       }
     } catch (err: any) {
       console.error("Error deleting product:", err)
