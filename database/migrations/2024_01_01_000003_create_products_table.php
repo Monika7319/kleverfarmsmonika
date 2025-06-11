@@ -6,16 +6,19 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    public function up()
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
     {
         Schema::create('products', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('farm_id')->constrained()->onDelete('cascade');
+            $table->foreignId('farm_id')->constrained('farms')->onDelete('cascade');
             $table->string('name');
             $table->string('category');
             $table->decimal('price', 10, 2);
             $table->string('unit');
-            $table->integer('discount')->default(0);
+            $table->decimal('discount', 5, 2)->default(0);
             $table->text('description')->nullable();
             $table->integer('stock')->default(0);
             $table->string('image')->nullable();
@@ -24,11 +27,16 @@ return new class extends Migration
             $table->boolean('is_approved')->default(false);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            $table->softDeletes();
+            
+            $table->index(['farm_id', 'is_approved', 'is_active']);
+            $table->index(['category', 'is_approved']);
         });
     }
 
-    public function down()
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
     {
         Schema::dropIfExists('products');
     }

@@ -12,28 +12,18 @@ class Farm extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
-        'user_id',
-        'farmName',
-        'ownerName',
+        'name',
         'email',
-        'phone',
         'password',
+        'phone',
         'address',
         'city',
         'state',
-        'zip',
-        'farmSize',
-        'farmType',
-        'description',
-        'farmingMethods',
-        'specialties',
-        'images',
-        'acceptTerms',
+        'postal_code',
         'latitude',
         'longitude',
         'is_verified',
         'is_active',
-        'slug',
     ];
 
     protected $hidden = [
@@ -43,34 +33,30 @@ class Farm extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'password' => 'hashed',
         'is_verified' => 'boolean',
         'is_active' => 'boolean',
-        'acceptTerms' => 'boolean',
-        'farmingMethods' => 'array',
-        'specialties' => 'array',
-        'images' => 'array',
+        'latitude' => 'decimal:8',
+        'longitude' => 'decimal:8',
     ];
 
-    // Relationships
     public function products()
     {
         return $this->hasMany(Product::class);
     }
 
-    // Scopes
-    public function scopeVerified($query)
+    public function orders()
     {
-        return $query->where('is_verified', true);
+        return $this->hasMany(Order::class);
     }
 
-    public function scopeActive($query)
+    public function approvedProducts()
     {
-        return $query->where('is_active', true);
+        return $this->products()->where('is_approved', true)->where('is_active', true);
     }
 
-    // Accessors
-    public function getFullAddressAttribute()
+    public function pendingProducts()
     {
-        return "{$this->address}, {$this->city}, {$this->state} {$this->zip}";
+        return $this->products()->where('is_approved', false)->where('is_active', true);
     }
 }

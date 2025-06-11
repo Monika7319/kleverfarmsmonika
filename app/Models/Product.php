@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
-    use SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
         'farm_id',
@@ -16,8 +16,8 @@ class Product extends Model
         'price',
         'unit',
         'discount',
-        'stock',
         'description',
+        'stock',
         'image',
         'is_featured',
         'is_seasonal',
@@ -27,7 +27,7 @@ class Product extends Model
 
     protected $casts = [
         'price' => 'decimal:2',
-        'discount' => 'integer',
+        'discount' => 'decimal:2',
         'stock' => 'integer',
         'is_featured' => 'boolean',
         'is_seasonal' => 'boolean',
@@ -35,59 +35,16 @@ class Product extends Model
         'is_active' => 'boolean',
     ];
 
-    // Relationships
     public function farm()
     {
         return $this->belongsTo(Farm::class);
     }
 
-    // Scopes
-    public function scopeFeatured($query)
+    public function orderItems()
     {
-        return $query->where('is_featured', true);
+        return $this->hasMany(OrderItem::class);
     }
 
-    public function scopeSeasonal($query)
-    {
-        return $query->where('is_seasonal', true);
-    }
-
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
-    }
-
-    public function scopeApproved($query)
-    {
-        return $query->where('is_approved', true);
-    }
-
-    public function scopePending($query)
-    {
-        return $query->where('is_approved', false);
-    }
-
-    public function scopeInStock($query)
-    {
-        return $query->where('stock', '>', 0);
-    }
-
-    public function scopeOutOfStock($query)
-    {
-        return $query->where('stock', 0);
-    }
-
-    public function scopeLowStock($query, $threshold = 10)
-    {
-        return $query->where('stock', '>', 0)->where('stock', '<=', $threshold);
-    }
-
-    public function scopeByCategory($query, $category)
-    {
-        return $query->where('category', $category);
-    }
-
-    // Accessors
     public function getDiscountedPriceAttribute()
     {
         if ($this->discount > 0) {
@@ -96,26 +53,26 @@ class Product extends Model
         return $this->price;
     }
 
-    public function getIsInStockAttribute()
+    public function getImageUrlAttribute()
     {
-        return $this->stock > 0;
-    }
-
-    public function getIsLowStockAttribute()
-    {
-        return $this->stock > 0 && $this->stock <= 10;
-    }
-
-    public function getStockStatusAttribute()
-    {
-        if ($this->stock === 0) {
-            return 'out_of_stock';
-        } elseif ($this->stock <= 5) {
-            return 'low_stock';
-        } elseif ($this->stock <= 10) {
-            return 'medium_stock';
-        } else {
-            return 'in_stock';
+        if ($this->image) {
+            return asset('storage/' . $this->image);
         }
+        return null;
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('is_approved', true);
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    public function scopeFeatured($query)
+    {
+        return $query->where('is_featured', true);
     }
 }

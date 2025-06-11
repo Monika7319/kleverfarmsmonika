@@ -3,103 +3,153 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\User;
 use App\Models\Farm;
 use App\Models\Product;
+use App\Models\Order;
+use App\Models\OrderItem;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    public function run()
+    public function run(): void
     {
-        // Create admin user
-        $admin = User::create([
-            'name' => 'Admin User',
-            'email' => 'admin@kleverfarms.com',
-            'password' => Hash::make('password'),
-            'role' => 'admin',
-        ]);
-
-        // Create sample farmer
-        $farmer = User::create([
-            'name' => 'Rajesh Kumar',
-            'email' => 'rajesh@example.com',
-            'password' => Hash::make('password'),
+        // Create sample farms
+        $farm1 = Farm::create([
+            'name' => 'Green Valley Farm',
+            'email' => 'farmer@greenvalley.com',
+            'password' => Hash::make('password123'),
             'phone' => '+91 98765 43210',
-            'role' => 'farmer',
+            'address' => '123 Farm Road, Green Valley',
+            'city' => 'Bangalore',
+            'state' => 'Karnataka',
+            'postal_code' => '560001',
+            'is_verified' => true,
+            'is_active' => true,
         ]);
 
-        // Create farm for the farmer
-        $farm = Farm::create([
-            'user_id' => $farmer->id,
-            'name' => 'Kumar Organic Farm',
-            'description' => 'Organic vegetables and fruits grown with traditional methods',
-            'address' => '123 Farm Road',
+        $farm2 = Farm::create([
+            'name' => 'Sunrise Organic Farm',
+            'email' => 'contact@sunriseorganic.com',
+            'password' => Hash::make('password123'),
+            'phone' => '+91 87654 32109',
+            'address' => '456 Organic Lane, Sunrise Hills',
             'city' => 'Pune',
             'state' => 'Maharashtra',
-            'zip_code' => '411001',
-            'phone' => '+91 98765 43210',
-            'email' => 'rajesh@example.com',
+            'postal_code' => '411001',
             'is_verified' => true,
+            'is_active' => true,
         ]);
 
         // Create sample products
         $products = [
             [
-                'name' => 'Organic Tomatoes',
+                'farm_id' => $farm1->id,
+                'name' => 'Fresh Tomatoes',
                 'category' => 'Vegetables',
-                'price' => 80.00,
+                'price' => 45.00,
                 'unit' => 'kg',
-                'description' => 'Fresh organic tomatoes grown without pesticides',
-                'stock' => 50,
+                'description' => 'Fresh, organic tomatoes grown without pesticides',
+                'stock' => 100,
                 'is_approved' => true,
                 'is_featured' => true,
             ],
             [
-                'name' => 'Fresh Spinach',
-                'category' => 'Vegetables',
-                'price' => 40.00,
-                'unit' => 'kg',
-                'description' => 'Nutrient-rich fresh spinach leaves',
-                'stock' => 30,
-                'is_approved' => true,
-                'is_seasonal' => true,
-            ],
-            [
-                'name' => 'Organic Milk',
-                'category' => 'Dairy',
-                'price' => 60.00,
-                'unit' => 'liter',
-                'description' => 'Pure organic milk from grass-fed cows',
-                'stock' => 25,
-                'is_approved' => false,
-            ],
-            [
-                'name' => 'Farm Fresh Eggs',
-                'category' => 'Dairy',
-                'price' => 120.00,
-                'unit' => 'dozen',
-                'description' => 'Free-range chicken eggs',
-                'stock' => 40,
-                'is_approved' => true,
-            ],
-            [
+                'farm_id' => $farm1->id,
                 'name' => 'Organic Carrots',
                 'category' => 'Vegetables',
-                'price' => 50.00,
+                'price' => 35.00,
                 'unit' => 'kg',
-                'description' => 'Sweet and crunchy organic carrots',
-                'stock' => 5, // Low stock
+                'description' => 'Sweet, crunchy organic carrots',
+                'stock' => 75,
                 'is_approved' => true,
+            ],
+            [
+                'farm_id' => $farm1->id,
+                'name' => 'Farm Fresh Eggs',
+                'category' => 'Dairy',
+                'price' => 8.00,
+                'unit' => 'piece',
+                'description' => 'Free-range chicken eggs',
+                'stock' => 200,
+                'is_approved' => false, // Pending approval
+            ],
+            [
+                'farm_id' => $farm2->id,
+                'name' => 'Organic Apples',
+                'category' => 'Fruits',
+                'price' => 120.00,
+                'unit' => 'kg',
+                'description' => 'Crisp, sweet organic apples',
+                'stock' => 50,
+                'is_approved' => true,
+                'is_featured' => true,
             ],
         ];
 
         foreach ($products as $productData) {
-            Product::create(array_merge($productData, [
-                'farm_id' => $farm->id,
-                'discount' => 0,
-                'is_active' => true,
-            ]));
+            Product::create($productData);
         }
+
+        // Create sample orders
+        $order1 = Order::create([
+            'farm_id' => $farm1->id,
+            'customer_name' => 'Rahul Sharma',
+            'customer_email' => 'rahul@example.com',
+            'customer_phone' => '+91 98765 43210',
+            'customer_address' => '789 Customer Street, Bangalore, Karnataka',
+            'subtotal' => 225.00,
+            'tax_amount' => 22.50,
+            'delivery_fee' => 50.00,
+            'total' => 297.50,
+            'status' => 'delivered',
+            'payment_status' => 'paid',
+            'payment_method' => 'UPI',
+        ]);
+
+        // Create order items for order1
+        OrderItem::create([
+            'order_id' => $order1->id,
+            'product_id' => 1, // Fresh Tomatoes
+            'product_name' => 'Fresh Tomatoes',
+            'product_price' => 45.00,
+            'product_unit' => 'kg',
+            'quantity' => 3,
+            'total_price' => 135.00,
+        ]);
+
+        OrderItem::create([
+            'order_id' => $order1->id,
+            'product_id' => 2, // Organic Carrots
+            'product_name' => 'Organic Carrots',
+            'product_price' => 35.00,
+            'product_unit' => 'kg',
+            'quantity' => 2,
+            'total_price' => 70.00,
+        ]);
+
+        $order2 = Order::create([
+            'farm_id' => $farm1->id,
+            'customer_name' => 'Priya Patel',
+            'customer_email' => 'priya@example.com',
+            'customer_phone' => '+91 87654 32109',
+            'customer_address' => '456 Another Street, Bangalore, Karnataka',
+            'subtotal' => 90.00,
+            'tax_amount' => 9.00,
+            'delivery_fee' => 30.00,
+            'total' => 129.00,
+            'status' => 'processing',
+            'payment_status' => 'paid',
+            'payment_method' => 'Credit Card',
+        ]);
+
+        OrderItem::create([
+            'order_id' => $order2->id,
+            'product_id' => 1, // Fresh Tomatoes
+            'product_name' => 'Fresh Tomatoes',
+            'product_price' => 45.00,
+            'product_unit' => 'kg',
+            'quantity' => 2,
+            'total_price' => 90.00,
+        ]);
     }
 }
