@@ -9,6 +9,9 @@ use App\Models\Farm;
 use App\Http\Controllers\FarmerDashboardController;
 use App\Http\Controllers\FarmAuthController;
 use App\Http\Controllers\FarmerProductController;
+use App\Http\Controllers\Api\CultivatorAuthController;
+use App\Http\Controllers\Api\CultivatorDashboardController;
+use App\Http\Controllers\Api\CultivatorHarvestController;
 
 Route::get('/test-slug-fetch', function () {
     $slug = 'krishna-in-belagavi-karnataka';
@@ -33,17 +36,35 @@ Route::delete('/farms/{farm}', [FarmController::class, 'destroy']);
 Route::get('/frontend/farms', [FarmDisplayController::class, 'index']);
 Route::get('/frontend/farm/{slug}', [FarmDisplayController::class, 'showBySlug']);
 
-Route::post('/auth/farmer/login', [FarmAuthController::class, 'login']);
+// Cultivator Authentication Routes
+Route::post('/auth/farmer/login', [CultivatorAuthController::class, 'login']);
+
+// Protected Cultivator Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/auth/farmer/logout', [CultivatorAuthController::class, 'logout']);
+    Route::get('/farmer/dashboard', [CultivatorDashboardController::class, 'index']);
+
+    // Harvest/Product APIs - Order matters! Specific routes before parameterized ones
+    Route::get('/farmer/products/low-stock', [CultivatorHarvestController::class, 'lowStock']);
+    Route::get('/farmer/products', [CultivatorHarvestController::class, 'index']);
+    Route::post('/farmer/products', [CultivatorHarvestController::class, 'store']);
+    Route::get('/farmer/products/{id}', [CultivatorHarvestController::class, 'show']);
+    Route::put('/farmer/products/{id}', [CultivatorHarvestController::class, 'update']);
+    Route::delete('/farmer/products/{id}', [CultivatorHarvestController::class, 'destroy']);
+});
+
+// Legacy Farm Routes (keeping for backward compatibility)
+Route::post('/auth/farmer/login-legacy', [FarmAuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::post('/auth/farmer/logout', [FarmAuthController::class, 'logout']);
-    Route::get('/farmer/dashboard', [FarmerDashboardController::class, 'index']);
+    Route::post('/auth/farmer/logout-legacy', [FarmAuthController::class, 'logout']);
+    Route::get('/farmer/dashboard-legacy', [FarmerDashboardController::class, 'index']);
 
-    // Product APIs - Order matters! Specific routes before parameterized ones
-    Route::get('/farmer/products/low-stock', [FarmerProductController::class, 'lowStock']);
-    Route::get('/farmer/products', [FarmerProductController::class, 'index']);
-    Route::post('/farmer/products', [FarmerProductController::class, 'store']);
-    Route::get('/farmer/products/{id}', [FarmerProductController::class, 'show']);
-    Route::put('/farmer/products/{id}', [FarmerProductController::class, 'update']);
-    Route::delete('/farmer/products/{id}', [FarmerProductController::class, 'destroy']);
+    // Legacy Product APIs
+    Route::get('/farmer/products-legacy/low-stock', [FarmerProductController::class, 'lowStock']);
+    Route::get('/farmer/products-legacy', [FarmerProductController::class, 'index']);
+    Route::post('/farmer/products-legacy', [FarmerProductController::class, 'store']);
+    Route::get('/farmer/products-legacy/{id}', [FarmerProductController::class, 'show']);
+    Route::put('/farmer/products-legacy/{id}', [FarmerProductController::class, 'update']);
+    Route::delete('/farmer/products-legacy/{id}', [FarmerProductController::class, 'destroy']);
 });

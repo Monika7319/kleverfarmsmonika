@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { authHeaders, API_BASE_URL, formatCurrency } from "@/lib/utils"
-import { Plus, Package, CheckCircle, User, MapPin, Phone, Mail, Loader2 } from "lucide-react"
+import { Plus, Package, CheckCircle, Clock, User, MapPin, Phone, Mail, Loader2, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 interface FarmerProfile {
   id: number
@@ -24,19 +25,23 @@ interface FarmerProfile {
   }
 }
 
-interface Order {
-  id: string
-  customer_name: string
-  total: number
-  status: string
-  payment_status: string
+interface Product {
+  id: number
+  name: string
+  category: string
+  price: number
+  unit: string
+  description: string | null
+  stock: number
+  image: string | null
+  is_approved: boolean
+  is_active: boolean
   created_at: string
-  items_count: number
 }
 
 export default function FarmerDashboardPage() {
   const [farmer, setFarmer] = useState<FarmerProfile | null>(null)
-  const [orders, setOrders] = useState<Order[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
@@ -50,14 +55,14 @@ export default function FarmerDashboardPage() {
       setLoading(true)
       setError(null)
 
-      // Fetch farmer profile and recent orders
-      const [profileRes, ordersRes] = await Promise.all([
+      // Fetch farmer profile and products
+      const [profileRes, productsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/farmer/dashboard`, { headers: authHeaders() }),
-        fetch(`${API_BASE_URL}/api/farmer/orders?limit=5`, { headers: authHeaders() }),
+        fetch(`${API_BASE_URL}/api/farmer/products`, { headers: authHeaders() }),
       ])
 
       // Check for authentication errors
-      if (profileRes.status === 401 || ordersRes.status === 401) {
+      if (profileRes.status === 401 || productsRes.status === 401) {
         window.location.href = "/login"
         return
       }
@@ -76,66 +81,24 @@ export default function FarmerDashboardPage() {
         }
       }
 
-      // Handle orders response
-      if (ordersRes.ok) {
-        const ordersData = await ordersRes.json()
-        if (ordersData.success) {
-          setOrders(ordersData.orders || [])
+      // Handle products response
+      if (productsRes.ok) {
+        const productsData = await productsRes.json()
+        if (productsData.success) {
+          setProducts(productsData.products || [])
         }
       }
 
       // If any request failed, show error but don't break the page
-      if (!profileRes.ok || !ordersRes.ok) {
+      if (!profileRes.ok || !productsRes.ok) {
         throw new Error("Some data could not be loaded")
       }
     } catch (error: any) {
       console.error("Dashboard fetch error:", error)
       setError(error.message)
-
-      // Set demo data if API fails
-      if (!farmer) {
-        setFarmer({
-          id: 1,
-          name: "Demo Farmer",
-          email: "demo@example.com",
-          phone: "+91 98765 43210",
-          farm: {
-            id: 1,
-            name: "Demo Farm",
-            address: "123 Farm Road",
-            city: "Bangalore",
-            state: "Karnataka",
-            is_verified: true,
-          },
-        })
-      }
-
-      if (orders.length === 0) {
-        setOrders([
-          {
-            id: "ORD-2023-1001",
-            customer_name: "Rahul Sharma",
-            total: 1249.97,
-            status: "delivered",
-            payment_status: "paid",
-            created_at: "2023-05-15T10:30:00Z",
-            items_count: 3,
-          },
-          {
-            id: "ORD-2023-1002",
-            customer_name: "Priya Patel",
-            total: 779.98,
-            status: "processing",
-            payment_status: "paid",
-            created_at: "2023-05-16T14:45:00Z",
-            items_count: 2,
-          },
-        ])
-      }
-
       toast({
         title: "Error loading dashboard",
-        description: "Using demo data. Please refresh to try again.",
+        description: "Some data may not be available. Please refresh the page.",
         variant: "destructive",
       })
     } finally {
@@ -143,45 +106,68 @@ export default function FarmerDashboardPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusColors: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      processing: "bg-blue-100 text-blue-800",
-      shipped: "bg-purple-100 text-purple-800",
-      delivered: "bg-green-100 text-green-800",
-      cancelled: "bg-red-100 text-red-800",
+  const getApprovalBadge = (isApproved: boolean) => {
+    if (isApproved) {
+      return (
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Approved
+        </Badge>
+      )
+    } else {
+      return (
+        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+          <Clock className="w-3 h-3 mr-1" />
+          Pending Approval
+        </Badge>
+      )
     }
-
-    const colorClass = statusColors[status] || "bg-gray-100 text-gray-800"
-    return (
-      <Badge variant="outline" className={colorClass}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    )
   }
+
+  const getImageUrl = (imagePath: string | null) => {
+    if (!imagePath) return "/placeholder.svg?height=48&width=48"
+
+    // Check if it's already a full URL
+    if (imagePath.startsWith("http")) return imagePath
+
+    // Use harvests/images path for new system
+    return `${API_BASE_URL}/harvests/images/${imagePath}`
+  }
+
+  const approvedProducts = products.filter((p) => p.is_approved)
+  const pendingProducts = products.filter((p) => !p.is_approved)
+  const totalStockValue = products.reduce((total, product) => total + product.price * product.stock, 0)
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="space-y-6">
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {/* Simple Header */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Farmer Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's an overview of your farm.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back! Here's an overview of your farm's performance.</p>
         </div>
-        <Link href="/farmer-dashboard/products/new" className="mt-4 md:mt-0">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Product
+        <div className="flex gap-2 mt-4 md:mt-0">
+          <Button variant="outline">
+            <ExternalLink className="mr-2 h-4 w-4" />
+            View Farm Page
           </Button>
-        </Link>
+          <Link href="/farmer-dashboard/products/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Product
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -197,15 +183,15 @@ export default function FarmerDashboardPage() {
         </Card>
       )}
 
-      {/* Simplified Farmer Details */}
+      {/* Farmer Profile Card */}
       {farmer && (
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Farmer Details
+              Farmer Profile
               {farmer.farm?.is_verified && (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 ml-2">
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                   <CheckCircle className="w-3 h-3 mr-1" />
                   Verified
                 </Badge>
@@ -214,17 +200,17 @@ export default function FarmerDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Name:</span>
-                  <span>{farmer.name}</span>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Name</p>
+                  <p className="text-lg">{farmer.name}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Farm:</span>
-                  <span>{farmer.farm?.name || "Not provided"}</span>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Farm Name</p>
+                  <p className="text-lg">{farmer.farm?.name || "Not provided"}</p>
                 </div>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-gray-500" />
                   <span>{farmer.email}</span>
@@ -247,45 +233,206 @@ export default function FarmerDashboardPage() {
         </Card>
       )}
 
-      {/* Recent Orders */}
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{products.length}</div>
+            <p className="text-xs text-muted-foreground">All your products</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approved Products</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{approvedProducts.length}</div>
+            <p className="text-xs text-muted-foreground">Ready for sale</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{pendingProducts.length}</div>
+            <p className="text-xs text-muted-foreground">Awaiting admin review</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Stock Value</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalStockValue)}</div>
+            <p className="text-xs text-muted-foreground">Current inventory value</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Products Sections */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Approved Products */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Approved Products
+            </CardTitle>
+            <CardDescription>Products approved by admin and available for sale</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {approvedProducts.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No approved products yet</p>
+            ) : (
+              <div className="space-y-4">
+                {approvedProducts.slice(0, 3).map((product) => (
+                  <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                      <Image
+                        src={getImageUrl(product.image) || "/placeholder.svg"}
+                        alt={product.name}
+                        width={48}
+                        height={48}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg?height=48&width=48"
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{product.name}</p>
+                      <p className="text-sm text-gray-500">{product.category}</p>
+                      <p className="text-sm font-medium text-green-600">
+                        {formatCurrency(product.price)}/{product.unit}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {getApprovalBadge(product.is_approved)}
+                      <p className="text-xs text-gray-500 mt-1">Stock: {product.stock}</p>
+                    </div>
+                  </div>
+                ))}
+                {approvedProducts.length > 3 && (
+                  <Link href="/farmer-dashboard/products?tab=approved">
+                    <Button variant="outline" className="w-full">
+                      View All Approved Products ({approvedProducts.length})
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Pending Products */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-yellow-600" />
+              Pending Approval
+            </CardTitle>
+            <CardDescription>Products waiting for admin approval</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {pendingProducts.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No products pending approval</p>
+            ) : (
+              <div className="space-y-4">
+                {pendingProducts.slice(0, 3).map((product) => (
+                  <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                      <Image
+                        src={getImageUrl(product.image) || "/placeholder.svg"}
+                        alt={product.name}
+                        width={48}
+                        height={48}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg?height=48&width=48"
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{product.name}</p>
+                      <p className="text-sm text-gray-500">{product.category}</p>
+                      <p className="text-sm font-medium text-green-600">
+                        {formatCurrency(product.price)}/{product.unit}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {getApprovalBadge(product.is_approved)}
+                      <p className="text-xs text-gray-500 mt-1">Stock: {product.stock}</p>
+                    </div>
+                  </div>
+                ))}
+                {pendingProducts.length > 3 && (
+                  <Link href="/farmer-dashboard/products?tab=pending">
+                    <Button variant="outline" className="w-full">
+                      View All Pending Products ({pendingProducts.length})
+                    </Button>
+                  </Link>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
       <Card>
-        <CardHeader className="pb-2">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-xl">Recent Orders</CardTitle>
-            <Link href="/farmer-dashboard/orders">
-              <Button variant="outline" size="sm">
-                View All Orders
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common tasks you might want to perform</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Link href="/farmer-dashboard/products/new">
+              <Button className="w-full justify-start h-auto p-4" variant="outline">
+                <div className="flex flex-col items-start gap-2">
+                  <Plus className="h-5 w-5" />
+                  <div>
+                    <p className="font-medium">Add New Product</p>
+                    <p className="text-xs text-gray-500">Create a new product listing</p>
+                  </div>
+                </div>
+              </Button>
+            </Link>
+            <Link href="/farmer-dashboard/products">
+              <Button className="w-full justify-start h-auto p-4" variant="outline">
+                <div className="flex flex-col items-start gap-2">
+                  <Package className="h-5 w-5" />
+                  <div>
+                    <p className="font-medium">Manage Products</p>
+                    <p className="text-xs text-gray-500">View and edit your products</p>
+                  </div>
+                </div>
+              </Button>
+            </Link>
+            <Link href="/farmer-dashboard/profile">
+              <Button className="w-full justify-start h-auto p-4" variant="outline">
+                <div className="flex flex-col items-start gap-2">
+                  <User className="h-5 w-5" />
+                  <div>
+                    <p className="font-medium">Update Profile</p>
+                    <p className="text-xs text-gray-500">Edit your farm information</p>
+                  </div>
+                </div>
               </Button>
             </Link>
           </div>
-        </CardHeader>
-        <CardContent>
-          {orders.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-              <p>No orders yet</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {orders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{order.id}</span>
-                      {getStatusBadge(order.status)}
-                    </div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {order.customer_name} • {order.items_count} items
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-medium text-green-600">{formatCurrency(order.total)}</div>
-                    <div className="text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString()}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
