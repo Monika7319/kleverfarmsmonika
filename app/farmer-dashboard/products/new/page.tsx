@@ -2,9 +2,9 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, Upload, Loader2, X } from "lucide-react"
+import { ArrowLeft, Save, Upload, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { authHeadersFormData, API_BASE_URL } from "@/lib/utils"
+import { authHeaders, API_BASE_URL } from "@/lib/utils"
 
 interface ProductFormData {
   name: string
@@ -25,6 +25,7 @@ interface ProductFormData {
   stock: string
   is_featured: boolean
   is_seasonal: boolean
+  image: string
 }
 
 const categories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs", "Honey", "Preserves", "Other"]
@@ -32,8 +33,6 @@ const categories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs", "Honey",
 export default function NewProductPage() {
   const router = useRouter()
   const { toast } = useToast()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
@@ -45,10 +44,10 @@ export default function NewProductPage() {
     stock: "0",
     is_featured: false,
     is_seasonal: false,
+    image: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [image, setImage] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [image, setImage] = useState<string | null>(null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -72,41 +71,16 @@ export default function NewProductPage() {
     }
   }
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click()
-  }
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      setErrors((prev) => ({ ...prev, image: "Please select a valid image file" }))
-      return
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setErrors((prev) => ({ ...prev, image: "Image size must be less than 5MB" }))
-      return
-    }
-
-    setImage(file)
-    setPreviewUrl(URL.createObjectURL(file))
+    // Create preview URL
+    const imageUrl = URL.createObjectURL(file)
+    setFormData((prev) => ({ ...prev, image: imageUrl }))
 
     if (errors.image) {
       setErrors((prev) => ({ ...prev, image: "" }))
-    }
-  }
-
-  const handleRemoveImage = () => {
-    setImage(null)
-    setPreviewUrl(null)
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
     }
   }
 
@@ -148,26 +122,31 @@ export default function NewProductPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateForm()) return
+
+    if (!validateForm()) {
+      return
+    }
 
     setIsSubmitting(true)
+
     try {
-      const form = new FormData()
-      form.append("name", formData.name)
-      form.append("category", formData.category)
-      form.append("price", formData.price)
-      form.append("unit", formData.unit)
-      form.append("discount", formData.discount)
-      form.append("stock", formData.stock)
-      form.append("description", formData.description)
-      form.append("is_featured", String(formData.is_featured))
-      form.append("is_seasonal", String(formData.is_seasonal))
-      if (image) form.append("image", image)
+      const productData = {
+        name: formData.name,
+        category: formData.category,
+        price: Number(formData.price),
+        unit: formData.unit,
+        discount: Number(formData.discount || 0),
+        description: formData.description || null,
+        stock: Number(formData.stock || 0),
+        image: formData.image || null,
+        is_featured: formData.is_featured,
+        is_seasonal: formData.is_seasonal,
+      }
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
-        headers: authHeadersFormData(),
-        body: form,
+        headers: authHeaders(),
+        body: JSON.stringify(productData),
       })
 
       if (!response.ok) {
@@ -180,13 +159,13 @@ export default function NewProductPage() {
       }
 
       const data = await response.json()
+
       toast({
         title: "Product Added",
         description: `${data.product.name} has been added successfully.`,
       })
 
-      // Redirect to dashboard to see the new product
-      router.push("/farmer-dashboard")
+      router.push("/farmer-dashboard/products")
     } catch (err: any) {
       console.error("Error adding product:", err)
       toast({
@@ -270,7 +249,7 @@ export default function NewProductPage() {
               />
             </div>
 
-            {/* Price, Unit, Stock */}
+            {/* Price, Unit, Discount */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="price" className={errors.price ? "text-red-500" : ""}>
@@ -321,71 +300,30 @@ export default function NewProductPage() {
               </div>
             </div>
 
-            {/* Discount */}
-            <div className="space-y-2">
-              <Label htmlFor="discount" className={errors.discount ? "text-red-500" : ""}>
-                Discount (%)
-              </Label>
-              <Input
-                id="discount"
-                name="discount"
-                type="number"
-                value={formData.discount}
-                onChange={handleInputChange}
-                placeholder="0"
-                min="0"
-                max="100"
-                className={errors.discount ? "border-red-500" : ""}
-              />
-              {errors.discount && <p className="text-xs text-red-500">{errors.discount}</p>}
-            </div>
-
             {/* Image Upload */}
             <div className="space-y-2">
               <Label className={errors.image ? "text-red-500" : ""}>Product Image</Label>
               <div className="flex items-start gap-4">
-                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border-2 border-dashed border-gray-300">
-                  {previewUrl ? (
-                    <img src={previewUrl || "/placeholder.svg"} alt="Preview" className="w-full h-full object-cover" />
+                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                  {formData.image ? (
+                    <img
+                      src={formData.image || "/placeholder.svg"}
+                      alt="Product preview"
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      <div className="text-center">
-                        <Upload className="h-8 w-8 mx-auto mb-2" />
-                        <span className="text-xs">No image</span>
-                      </div>
-                    </div>
+                    <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
                   )}
                 </div>
                 <div className="flex-1 space-y-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleUploadClick}
-                    className="flex items-center gap-2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    {previewUrl ? "Change Image" : "Upload Image"}
-                  </Button>
-                  {previewUrl && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <X className="h-4 w-4" />
-                      Remove Image
+                  <label className="cursor-pointer">
+                    <Button variant="outline" type="button" className="flex items-center gap-2">
+                      <Upload className="h-4 w-4" />
+                      Upload Image
                     </Button>
-                  )}
-                  <p className="text-sm text-gray-500">Recommended: 800×800px or larger, JPG or PNG format (max 5MB)</p>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                  </label>
+                  <p className="text-sm text-gray-500">Recommended: 800x800px or larger, JPG or PNG format</p>
                   {errors.image && <p className="text-xs text-red-500">{errors.image}</p>}
                 </div>
               </div>
