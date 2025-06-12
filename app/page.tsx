@@ -13,6 +13,7 @@ import { ProductCard } from "./components/product-card"
 import { DeleteConfirmDialog } from "./components/delete-confirm-dialog"
 import { Pagination } from "./components/pagination"
 import { DemoLogin } from "./components/demo-login"
+import React from "react"
 
 export interface Product {
   id: number
@@ -199,6 +200,7 @@ export default function FarmerProductDashboard() {
         setProducts(demoProducts)
         const uniqueCategories = Array.from(new Set(demoProducts.map((p) => p.category)))
         setCategories(uniqueCategories)
+        setLoading(false)
         return
       }
 
@@ -295,11 +297,23 @@ export default function FarmerProductDashboard() {
     } finally {
       setLoading(false)
     }
-  }, [searchTerm, categoryFilter, statusFilter, sortBy, sortOrder, toast])
+  }, [searchTerm, categoryFilter, statusFilter, sortBy, sortOrder])
+
+  const initialFetchRef = React.useRef(false)
 
   useEffect(() => {
-    fetchProducts()
+    if (!initialFetchRef.current) {
+      fetchProducts()
+      initialFetchRef.current = true
+    }
   }, [fetchProducts])
+
+  useEffect(() => {
+    if (initialFetchRef.current) {
+      // Only fetch when filters change and after initial load
+      fetchProducts()
+    }
+  }, [searchTerm, categoryFilter, statusFilter, sortBy, sortOrder])
 
   const handleAddProduct = async (productData: Partial<Product>) => {
     try {
