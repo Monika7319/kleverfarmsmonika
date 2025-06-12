@@ -1,12 +1,24 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { authHeaders, API_BASE_URL, formatCurrency } from "@/lib/utils"
-import { Plus, Package, CheckCircle, Clock, User, MapPin, Phone, Mail, Loader2, ExternalLink } from "lucide-react"
+import {
+  Plus,
+  Package,
+  CheckCircle,
+  Clock,
+  User,
+  MapPin,
+  Phone,
+  Mail,
+  Loader2,
+  ExternalLink,
+  RefreshCw,
+} from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 
@@ -34,7 +46,7 @@ interface Product {
   description: string | null
   stock: number
   image: string | null
-  image_url: string | null
+  image_url?: string
   is_approved: boolean
   is_active: boolean
   created_at: string
@@ -44,27 +56,20 @@ export default function FarmerDashboardPage() {
   const [farmer, setFarmer] = useState<FarmerProfile | null>(null)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
 
-  useEffect(() => {
-    fetchDashboardData()
-  }, [])
-
-  // Auto-refresh when window gains focus
-  useEffect(() => {
-    const handleFocus = () => {
-      fetchDashboardData()
-    }
-
-    window.addEventListener("focus", handleFocus)
-    return () => window.removeEventListener("focus", handleFocus)
-  }, [])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (showRefreshing = false) => {
     try {
-      setLoading(true)
+      if (showRefreshing) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+      }
       setError(null)
+
+      console.log("Fetching dashboard data...")
 
       // Fetch farmer profile and products
       const [profileRes, productsRes] = await Promise.all([
@@ -72,8 +77,16 @@ export default function FarmerDashboardPage() {
         fetch(`${API_BASE_URL}/api/farmer/products`, { headers: authHeaders() }),
       ])
 
+      console.log("Profile response status:", profileRes.status)
+      console.log("Products response status:", productsRes.status)
+
       // Check for authentication errors
       if (profileRes.status === 401 || productsRes.status === 401) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in again.",
+          variant: "destructive",
+        })
         window.location.href = "/login"
         return
       }
@@ -81,6 +94,7 @@ export default function FarmerDashboardPage() {
       // Handle profile response
       if (profileRes.ok) {
         const profileData = await profileRes.json()
+        console.log("Profile data:", profileData)
         if (profileData.success) {
           setFarmer({
             id: profileData.user.id,
@@ -95,8 +109,16 @@ export default function FarmerDashboardPage() {
       // Handle products response
       if (productsRes.ok) {
         const productsData = await productsRes.json()
+        console.log("Products data:", productsData)
         if (productsData.success) {
           setProducts(productsData.products || [])
+
+          if (showRefreshing) {
+            toast({
+              title: "Dashboard Refreshed",
+              description: `Loaded ${productsData.products?.length || 0} products`,
+            })
+          }
         }
       }
 
@@ -114,7 +136,26 @@ export default function FarmerDashboardPage() {
       })
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
+  }
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  // Auto-refresh when returning to the page
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchDashboardData(true)
+    }
+
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
+  }, [])
+
+  const handleRefresh = () => {
+    fetchDashboardData(true)
   }
 
   const getApprovalBadge = (isApproved: boolean) => {
@@ -135,6 +176,12 @@ export default function FarmerDashboardPage() {
     }
   }
 
+  const getImageUrl = (product: Product) => {
+    if (product.image_url) return product.image_url
+    if (product.image) return `${API_BASE_URL}/products/images/${product.image}`
+    return "/placeholder.svg?height=48&width=48"
+  }
+
   const approvedProducts = products.filter((p) => p.is_approved)
   const pendingProducts = products.filter((p) => !p.is_approved)
   const totalStockValue = products.reduce((total, product) => total + product.price * product.stock, 0)
@@ -144,6 +191,7 @@ export default function FarmerDashboardPage() {
       <div className="space-y-6">
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Loading dashboard...</span>
         </div>
       </div>
     )
@@ -158,6 +206,10 @@ export default function FarmerDashboardPage() {
           <p className="text-muted-foreground">Welcome back! Here's an overview of your farm's performance.</p>
         </div>
         <div className="flex gap-2 mt-4 md:mt-0">
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
           <Button variant="outline">
             <ExternalLink className="mr-2 h-4 w-4" />
             View Farm Page
@@ -290,6 +342,7 @@ export default function FarmerDashboardPage() {
               <CheckCircle className="h-5 w-5 text-green-600" />
               Approved Products
             </CardTitle>
+            <CardDescription>Products approved by admin and available for sale</CardDescription>
           </CardHeader>
           <CardContent>
             {approvedProducts.length === 0 ? (
@@ -300,11 +353,15 @@ export default function FarmerDashboardPage() {
                   <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
                     <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                       <Image
-                        src={product.image_url || "/placeholder.svg?height=48&width=48"}
+                        src={getImageUrl(product) || "/placeholder.svg"}
                         alt={product.name}
                         width={48}
                         height={48}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg?height=48&width=48"
+                        }}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -339,6 +396,7 @@ export default function FarmerDashboardPage() {
               <Clock className="h-5 w-5 text-yellow-600" />
               Pending Approval
             </CardTitle>
+            <CardDescription>Products waiting for admin approval</CardDescription>
           </CardHeader>
           <CardContent>
             {pendingProducts.length === 0 ? (
@@ -349,11 +407,15 @@ export default function FarmerDashboardPage() {
                   <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
                     <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                       <Image
-                        src={product.image_url || "/placeholder.svg?height=48&width=48"}
+                        src={getImageUrl(product) || "/placeholder.svg"}
                         alt={product.name}
                         width={48}
                         height={48}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement
+                          target.src = "/placeholder.svg?height=48&width=48"
+                        }}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -386,6 +448,7 @@ export default function FarmerDashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Common tasks you might want to perform</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -411,15 +474,17 @@ export default function FarmerDashboardPage() {
                 </div>
               </Button>
             </Link>
-            <Button className="w-full justify-start h-auto p-4" variant="outline" onClick={fetchDashboardData}>
-              <div className="flex flex-col items-start gap-2">
-                <Package className="h-5 w-5" />
-                <div>
-                  <p className="font-medium">Refresh Data</p>
-                  <p className="text-xs text-gray-500">Update dashboard information</p>
+            <Link href="/farmer-dashboard/profile">
+              <Button className="w-full justify-start h-auto p-4" variant="outline">
+                <div className="flex flex-col items-start gap-2">
+                  <User className="h-5 w-5" />
+                  <div>
+                    <p className="font-medium">Update Profile</p>
+                    <p className="text-xs text-gray-500">Edit your farm information</p>
+                  </div>
                 </div>
-              </div>
-            </Button>
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

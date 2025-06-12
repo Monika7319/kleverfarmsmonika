@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useSearchParams } from "next/navigation"
-import { Plus, Search, Filter, Package, ArrowUpDown, Loader2, Edit, Trash2, Eye } from "lucide-react"
+import { useSearchParams, useRouter } from "next/navigation"
+import { Plus, Search, Filter, Package, ArrowUpDown, Loader2, Edit, Trash2, Eye, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -26,7 +26,7 @@ interface Product {
   description: string | null
   stock: number
   image: string | null
-  image_url: string | null
+  image_url?: string
   is_featured: boolean
   is_seasonal: boolean
   is_approved: boolean
@@ -37,8 +37,10 @@ interface Product {
 
 export default function ProductsPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "all")
@@ -48,53 +50,88 @@ export default function ProductsPage() {
   const { toast } = useToast()
   const debouncedSearch = useDebounce(searchTerm, 500)
 
-  const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true)
-
-      const params = new URLSearchParams()
-      if (debouncedSearch) params.append("search", debouncedSearch)
-      if (categoryFilter !== "all") params.append("category", categoryFilter)
-      params.append("sort_by", sortBy)
-      params.append("sort_order", sortOrder)
-
-      const response = await fetch(`${API_BASE_URL}/api/farmer/products?${params}`, {
-        headers: authHeaders(),
-      })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          window.location.href = "/login"
-          return
+  const fetchProducts = useCallback(
+    async (showRefreshing = false) => {
+      try {
+        if (showRefreshing) {
+          setRefreshing(true)
+        } else {
+          setLoading(true)
         }
-        throw new Error(`HTTP error ${response.status}`)
+
+        const params = new URLSearchParams()
+        if (debouncedSearch) params.append("search", debouncedSearch)
+        if (categoryFilter !== "all") params.append("category", categoryFilter)
+        params.append("sort_by", sortBy)
+        params.append("sort_order", sortOrder)
+
+        console.log("Fetching products with params:", params.toString())
+
+        const response = await fetch(`${API_BASE_URL}/api/farmer/products?${params}`, {
+          headers: authHeaders(),
+        })
+
+        console.log("Products fetch response status:", response.status)
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            toast({
+              title: "Authentication Error",
+              description: "Please log in again.",
+              variant: "destructive",
+            })
+            router.push("/login")
+            return
+          }
+          throw new Error(`HTTP error ${response.status}`)
+        }
+
+        const data = await response.json()
+        console.log("Products data received:", data)
+
+        if (data.success) {
+          setProducts(data.products || [])
+
+          // Extract unique categories
+          const uniqueCategories = Array.from(new Set(data.products.map((p: Product) => p.category)))
+          setCategories(uniqueCategories)
+
+          if (showRefreshing) {
+            toast({
+              title: "Products Refreshed",
+              description: `Loaded ${data.products.length} products`,
+            })
+          }
+        } else {
+          throw new Error(data.message || "Failed to fetch products")
+        }
+      } catch (error: any) {
+        console.error("Error fetching products:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load products. Please try again.",
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+        setRefreshing(false)
       }
-
-      const data = await response.json()
-
-      if (data.success) {
-        setProducts(data.products || [])
-
-        // Extract unique categories
-        const uniqueCategories = Array.from(new Set(data.products.map((p: Product) => p.category)))
-        setCategories(uniqueCategories)
-      } else {
-        throw new Error(data.message || "Failed to fetch products")
-      }
-    } catch (error: any) {
-      console.error("Error fetching products:", error)
-      toast({
-        title: "Error",
-        description: "Failed to load products. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }, [debouncedSearch, categoryFilter, sortBy, sortOrder, toast])
+    },
+    [debouncedSearch, categoryFilter, sortBy, sortOrder, toast, router],
+  )
 
   useEffect(() => {
     fetchProducts()
+  }, [fetchProducts])
+
+  // Auto-refresh when returning to the page
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchProducts(true)
+    }
+
+    window.addEventListener("focus", handleFocus)
+    return () => window.removeEventListener("focus", handleFocus)
   }, [fetchProducts])
 
   const handleDeleteProduct = async (productId: number) => {
@@ -108,7 +145,7 @@ export default function ProductsPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          window.location.href = "/login"
+          router.push("/login")
           return
         }
         throw new Error(`HTTP error ${response.status}`)
@@ -135,6 +172,10 @@ export default function ProductsPage() {
     }
   }
 
+  const handleRefresh = () => {
+    fetchProducts(true)
+  }
+
   const filteredProducts = products.filter((product) => {
     // Filter by tab
     if (activeTab === "approved" && !product.is_approved) return false
@@ -159,11 +200,18 @@ export default function ProductsPage() {
     }
   }
 
+  const getImageUrl = (product: Product) => {
+    if (product.image_url) return product.image_url
+    if (product.image) return `${API_BASE_URL}/products/images/${product.image}`
+    return "/placeholder.svg?height=400&width=400"
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Loading products...</span>
         </div>
       </div>
     )
@@ -175,14 +223,20 @@ export default function ProductsPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Products</h2>
-          <p className="text-muted-foreground">Manage your farm's product inventory</p>
+          <p className="text-muted-foreground">Manage your farm's product inventory ({products.length} products)</p>
         </div>
-        <Link href="/farmer-dashboard/products/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Product
+        <div className="flex gap-2 mt-4 md:mt-0">
+          <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
           </Button>
-        </Link>
+          <Link href="/farmer-dashboard/products/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Product
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}
@@ -245,9 +299,9 @@ export default function ProductsPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="all">All Products</TabsTrigger>
-          <TabsTrigger value="approved">Approved</TabsTrigger>
-          <TabsTrigger value="pending">Pending Approval</TabsTrigger>
+          <TabsTrigger value="all">All Products ({products.length})</TabsTrigger>
+          <TabsTrigger value="approved">Approved ({products.filter((p) => p.is_approved).length})</TabsTrigger>
+          <TabsTrigger value="pending">Pending ({products.filter((p) => !p.is_approved).length})</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -276,10 +330,14 @@ export default function ProductsPage() {
             <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="aspect-square relative overflow-hidden bg-gray-100">
                 <Image
-                  src={product.image_url || "/placeholder.svg?height=400&width=400"}
+                  src={getImageUrl(product) || "/placeholder.svg"}
                   alt={product.name}
                   fill
                   className="object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.src = "/placeholder.svg?height=400&width=400"
+                  }}
                 />
                 <div className="absolute top-2 right-2">{getApprovalBadge(product.is_approved)}</div>
               </div>

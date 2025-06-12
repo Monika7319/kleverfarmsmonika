@@ -152,6 +152,7 @@ export default function NewProductPage() {
 
     setIsSubmitting(true)
     try {
+      // Create FormData for file upload
       const form = new FormData()
       form.append("name", formData.name)
       form.append("category", formData.category)
@@ -162,7 +163,19 @@ export default function NewProductPage() {
       form.append("description", formData.description)
       form.append("is_featured", String(formData.is_featured))
       form.append("is_seasonal", String(formData.is_seasonal))
-      if (image) form.append("image", image)
+
+      // Add image if selected
+      if (image) {
+        form.append("image", image)
+      }
+
+      console.log("Submitting product data:", {
+        name: formData.name,
+        category: formData.category,
+        price: formData.price,
+        unit: formData.unit,
+        hasImage: !!image,
+      })
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
@@ -170,28 +183,39 @@ export default function NewProductPage() {
         body: form,
       })
 
+      console.log("Response status:", response.status)
+
       if (!response.ok) {
         if (response.status === 401) {
+          toast({
+            title: "Authentication Error",
+            description: "Please log in again.",
+            variant: "destructive",
+          })
           router.push("/login")
           return
         }
+
         const errorData = await response.json()
+        console.error("Error response:", errorData)
         throw new Error(errorData.message || `HTTP error ${response.status}`)
       }
 
       const data = await response.json()
+      console.log("Success response:", data)
+
       toast({
-        title: "Product Added",
-        description: `${data.product.name} has been added successfully.`,
+        title: "Product Added Successfully!",
+        description: `${data.product.name} has been added to your inventory.`,
       })
 
-      // Redirect to dashboard to see the new product
-      router.push("/farmer-dashboard")
+      // Redirect to products page to see the new product
+      router.push("/farmer-dashboard/products")
     } catch (err: any) {
       console.error("Error adding product:", err)
       toast({
-        title: "Error",
-        description: err.message,
+        title: "Error Adding Product",
+        description: err.message || "Failed to add product. Please try again.",
         variant: "destructive",
       })
     } finally {
@@ -422,7 +446,7 @@ export default function NewProductPage() {
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Adding...
+                Adding Product...
               </>
             ) : (
               <>
