@@ -152,25 +152,22 @@ export default function NewProductPage() {
 
     setIsSubmitting(true)
     try {
-      const formData = new FormData()
-      formData.append("name", formData.name)
-      formData.append("category", formData.category)
-      formData.append("price", formData.price)
-      formData.append("unit", formData.unit)
-      formData.append("discount", formData.discount)
-      formData.append("stock", formData.stock)
-      formData.append("description", formData.description)
-      formData.append("is_featured", String(formData.is_featured))
-      formData.append("is_seasonal", String(formData.is_seasonal))
-
-      if (image) {
-        formData.append("image", image)
-      }
+      const form = new FormData()
+      form.append("name", formData.name)
+      form.append("category", formData.category)
+      form.append("price", formData.price)
+      form.append("unit", formData.unit)
+      form.append("discount", formData.discount)
+      form.append("stock", formData.stock)
+      form.append("description", formData.description)
+      form.append("is_featured", String(formData.is_featured))
+      form.append("is_seasonal", String(formData.is_seasonal))
+      if (image) form.append("image", image)
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
         headers: authHeadersFormData(),
-        body: formData,
+        body: form,
       })
 
       if (!response.ok) {
@@ -188,7 +185,8 @@ export default function NewProductPage() {
         description: `${data.product.name} has been added successfully.`,
       })
 
-      router.push("/farmer-dashboard/products")
+      // Redirect to dashboard to see the new product
+      router.push("/farmer-dashboard")
     } catch (err: any) {
       console.error("Error adding product:", err)
       toast({
