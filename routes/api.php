@@ -9,6 +9,9 @@ use App\Models\Farm;
 use App\Http\Controllers\FarmerDashboardController;
 use App\Http\Controllers\FarmAuthController;
 use App\Http\Controllers\FarmerProductController;
+use App\Http\Controllers\Api\CustomerAuthController;
+use App\Http\Controllers\Api\CustomerWishlistController;
+use App\Http\Controllers\Api\CustomerOrderController;
 
 Route::get('/test-slug-fetch', function () {
     $slug = 'krishna-in-belagavi-karnataka';
@@ -33,8 +36,14 @@ Route::delete('/farms/{farm}', [FarmController::class, 'destroy']);
 Route::get('/frontend/farms', [FarmDisplayController::class, 'index']);
 Route::get('/frontend/farm/{slug}', [FarmDisplayController::class, 'showBySlug']);
 
+// Farmer Authentication
 Route::post('/auth/farmer/login', [FarmAuthController::class, 'login']);
 
+// Customer Authentication
+Route::post('/customer/register', [CustomerAuthController::class, 'register']);
+Route::post('/customer/login', [CustomerAuthController::class, 'login']);
+
+// Protected Farmer Routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/farmer/logout', [FarmAuthController::class, 'logout']);
     Route::get('/farmer/dashboard', [FarmerDashboardController::class, 'index']);
@@ -46,4 +55,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/farmer/products/{id}', [FarmerProductController::class, 'show']);
     Route::put('/farmer/products/{id}', [FarmerProductController::class, 'update']);
     Route::delete('/farmer/products/{id}', [FarmerProductController::class, 'destroy']);
+});
+
+// Protected Customer Routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/customer/logout', [CustomerAuthController::class, 'logout']);
+    Route::get('/customer/profile', [CustomerAuthController::class, 'profile']);
+    Route::put('/customer/profile', [CustomerAuthController::class, 'updateProfile']);
+    
+    // Wishlist Routes
+    Route::get('/customer/wishlist', [CustomerWishlistController::class, 'index']);
+    Route::post('/customer/wishlist', [CustomerWishlistController::class, 'store']);
+    Route::delete('/customer/wishlist/{productId}', [CustomerWishlistController::class, 'destroy']);
+    
+    // Order Routes
+    Route::get('/customer/orders', [CustomerOrderController::class, 'index']);
+    Route::post('/customer/orders', [CustomerOrderController::class, 'store']);
+    Route::get('/customer/orders/{orderId}', [CustomerOrderController::class, 'show']);
 });
