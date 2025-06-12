@@ -1,7 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
 import FarmerSidebar from "@/components/farmer/farmer-sidebar"
-import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
   title: "Farmer Dashboard - KleverFarms",
@@ -15,7 +14,6 @@ export default function FarmerLayout({ children }: { children: React.ReactNode }
         <FarmerSidebar />
         <main className="flex-1 p-6 md:p-8 pt-6">{children}</main>
       </div>
-      <Toaster />
     </div>
   )
 }

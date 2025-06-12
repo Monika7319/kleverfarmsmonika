@@ -4,195 +4,97 @@ import type React from "react"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, Upload, Loader2 } from "lucide-react"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { authHeaders, API_BASE_URL } from "@/lib/utils"
-
-interface ProductFormData {
-  name: string
-  category: string
-  price: string
-  unit: string
-  discount: string
-  description: string
-  stock: string
-  is_featured: boolean
-  is_seasonal: boolean
-  image: string
-}
-
-const categories = ["Vegetables", "Fruits", "Dairy", "Grains", "Herbs", "Honey", "Preserves", "Other"]
+import { ArrowLeft, Save, Upload } from "lucide-react"
+import Link from "next/link"
 
 export default function NewProductPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formData, setFormData] = useState<ProductFormData>({
+  const [productData, setProductData] = useState({
     name: "",
-    category: "Vegetables",
     price: "",
     unit: "",
-    discount: "0",
+    category: "Dairy",
     description: "",
+    discount: "0",
     stock: "0",
-    is_featured: false,
-    is_seasonal: false,
+    featured: false,
+    seasonal: false,
     image: "",
   })
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [image, setImage] = useState<string | null>(null)
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-
-    // Clear error when field is edited
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }))
-    }
+    setProductData({ ...productData, [name]: value })
   }
 
   const handleSwitchChange = (name: string, checked: boolean) => {
-    setFormData((prev) => ({ ...prev, [name]: checked }))
+    setProductData({ ...productData, [name]: checked })
   }
 
   const handleSelectChange = (name: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [name]: value }))
-
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }))
-    }
+    setProductData({ ...productData, [name]: value })
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Create preview URL
+    // In a real app, you would upload this to your server/cloud storage
+    // For this demo, we'll create a fake URL
     const imageUrl = URL.createObjectURL(file)
-    setFormData((prev) => ({ ...prev, image: imageUrl }))
-
-    if (errors.image) {
-      setErrors((prev) => ({ ...prev, image: "" }))
-    }
+    setProductData({ ...productData, image: imageUrl })
   }
 
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {}
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Product name is required"
-    }
-
-    if (!formData.category) {
-      newErrors.category = "Category is required"
-    }
-
-    if (!formData.price) {
-      newErrors.price = "Price is required"
-    } else if (isNaN(Number(formData.price)) || Number(formData.price) < 0) {
-      newErrors.price = "Price must be a positive number"
-    }
-
-    if (!formData.unit.trim()) {
-      newErrors.unit = "Unit is required"
-    }
-
-    if (
-      formData.discount &&
-      (isNaN(Number(formData.discount)) || Number(formData.discount) < 0 || Number(formData.discount) > 100)
-    ) {
-      newErrors.discount = "Discount must be between 0 and 100"
-    }
-
-    if (formData.stock && (isNaN(Number(formData.stock)) || Number(formData.stock) < 0)) {
-      newErrors.stock = "Stock must be a positive number"
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) {
+    // Validate form
+    if (!productData.name || !productData.price || !productData.unit || !productData.category) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      })
       return
     }
 
     setIsSubmitting(true)
 
-    try {
-      const productData = {
-        name: formData.name,
-        category: formData.category,
-        price: Number(formData.price),
-        unit: formData.unit,
-        discount: Number(formData.discount || 0),
-        description: formData.description || null,
-        stock: Number(formData.stock || 0),
-        image: formData.image || null,
-        is_featured: formData.is_featured,
-        is_seasonal: formData.is_seasonal,
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify(productData),
-      })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          router.push("/login")
-          return
-        }
-        const errorData = await response.json()
-        throw new Error(errorData.message || `HTTP error ${response.status}`)
-      }
-
-      const data = await response.json()
-
+    // Simulate API call
+    setTimeout(() => {
       toast({
-        title: "Product Added",
-        description: `${data.product.name} has been added successfully.`,
+        title: "Product Created",
+        description: `${productData.name} has been added to your inventory.`,
       })
-
-      router.push("/farmer-dashboard/products")
-    } catch (err: any) {
-      console.error("Error adding product:", err)
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive",
-      })
-    } finally {
       setIsSubmitting(false)
-    }
+      router.push("/farmer/products")
+    }, 1500)
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+    <div className="space-y-6">
+      <div className="flex items-center">
+        <Link href="/farmer/products" className="mr-4">
+          <Button variant="outline" size="icon">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        </Link>
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Add New Product</h2>
           <p className="text-muted-foreground">Create a new product to sell from your farm</p>
         </div>
       </div>
 
-      {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
@@ -200,114 +102,146 @@ export default function NewProductPage() {
             <CardDescription>Basic details about your product</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Name & Category */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="name" className={errors.name ? "text-red-500" : ""}>
-                  Product Name *
+                <Label htmlFor="name" className="required">
+                  Product Name
                 </Label>
                 <Input
                   id="name"
                   name="name"
-                  value={formData.name}
+                  value={productData.name}
                   onChange={handleInputChange}
                   placeholder="Enter product name"
-                  className={errors.name ? "border-red-500" : ""}
+                  required
                 />
-                {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="category" className={errors.category ? "text-red-500" : ""}>
-                  Category *
+                <Label htmlFor="category" className="required">
+                  Category
                 </Label>
-                <Select value={formData.category} onValueChange={(value) => handleSelectChange("category", value)}>
-                  <SelectTrigger className={errors.category ? "border-red-500" : ""}>
+                <Select value={productData.category} onValueChange={(value) => handleSelectChange("category", value)}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="Dairy">Dairy Products</SelectItem>
+                    <SelectItem value="Vegetables">Vegetables</SelectItem>
+                    <SelectItem value="Fruits">Fruits</SelectItem>
+                    <SelectItem value="Grains">Grains & Cereals</SelectItem>
+                    <SelectItem value="Honey">Honey & Bee Products</SelectItem>
+                    <SelectItem value="Herbs">Herbs & Spices</SelectItem>
+                    <SelectItem value="Preserves">Jams & Preserves</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
-                {errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
               </div>
             </div>
 
-            {/* Description */}
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
                 id="description"
                 name="description"
-                value={formData.description}
+                value={productData.description}
                 onChange={handleInputChange}
-                placeholder="Describe your product..."
-                rows={3}
+                placeholder="Describe your product, its benefits, and unique qualities"
+                rows={4}
               />
             </div>
 
-            {/* Price, Unit, Discount */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="price" className={errors.price ? "text-red-500" : ""}>
-                  Price (₹) *
+                <Label htmlFor="price" className="required">
+                  Price (₹)
                 </Label>
                 <Input
                   id="price"
                   name="price"
                   type="number"
-                  value={formData.price}
+                  value={productData.price}
                   onChange={handleInputChange}
                   placeholder="0.00"
                   min="0"
                   step="0.01"
-                  className={errors.price ? "border-red-500" : ""}
+                  required
                 />
-                {errors.price && <p className="text-xs text-red-500">{errors.price}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="unit" className={errors.unit ? "text-red-500" : ""}>
-                  Unit *
+                <Label htmlFor="unit" className="required">
+                  Unit
                 </Label>
                 <Input
                   id="unit"
                   name="unit"
-                  value={formData.unit}
+                  value={productData.unit}
                   onChange={handleInputChange}
-                  placeholder="kg, piece, liter"
-                  className={errors.unit ? "border-red-500" : ""}
+                  placeholder="e.g., kg, g, piece"
+                  required
                 />
-                {errors.unit && <p className="text-xs text-red-500">{errors.unit}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="stock" className={errors.stock ? "text-red-500" : ""}>
-                  Stock Quantity
-                </Label>
+                <Label htmlFor="discount">Discount (%)</Label>
                 <Input
-                  id="stock"
-                  name="stock"
+                  id="discount"
+                  name="discount"
                   type="number"
-                  value={formData.stock}
+                  value={productData.discount}
                   onChange={handleInputChange}
                   placeholder="0"
                   min="0"
-                  className={errors.stock ? "border-red-500" : ""}
+                  max="100"
                 />
-                {errors.stock && <p className="text-xs text-red-500">{errors.stock}</p>}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Inventory & Settings</CardTitle>
+            <CardDescription>Manage stock and product visibility</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="stock">Stock Quantity</Label>
+              <Input
+                id="stock"
+                name="stock"
+                type="number"
+                value={productData.stock}
+                onChange={handleInputChange}
+                placeholder="0"
+                min="0"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="featured"
+                  checked={productData.featured}
+                  onCheckedChange={(checked) => handleSwitchChange("featured", checked)}
+                />
+                <Label htmlFor="featured">Featured Product</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="seasonal"
+                  checked={productData.seasonal}
+                  onCheckedChange={(checked) => handleSwitchChange("seasonal", checked)}
+                />
+                <Label htmlFor="seasonal">Seasonal Product</Label>
               </div>
             </div>
 
-            {/* Image Upload */}
             <div className="space-y-2">
-              <Label className={errors.image ? "text-red-500" : ""}>Product Image</Label>
-              <div className="flex items-start gap-4">
-                <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                  {formData.image ? (
+              <Label htmlFor="image">Product Image</Label>
+              <div className="flex items-center gap-4">
+                <div className="w-32 h-32 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                  {productData.image ? (
                     <img
-                      src={formData.image || "/placeholder.svg"}
+                      src={productData.image || "/placeholder.svg"}
                       alt="Product preview"
                       className="w-full h-full object-cover"
                     />
@@ -315,61 +249,27 @@ export default function NewProductPage() {
                     <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
                   )}
                 </div>
-                <div className="flex-1 space-y-2">
-                  <label className="cursor-pointer">
-                    <Button variant="outline" type="button" className="flex items-center gap-2">
-                      <Upload className="h-4 w-4" />
-                      Upload Image
-                    </Button>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  <p className="text-sm text-gray-500">Recommended: 800x800px or larger, JPG or PNG format</p>
-                  {errors.image && <p className="text-xs text-red-500">{errors.image}</p>}
-                </div>
+                <label className="cursor-pointer">
+                  <Button variant="outline" type="button" className="flex items-center gap-2">
+                    <Upload size={14} />
+                    Upload Image
+                  </Button>
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                </label>
               </div>
-            </div>
-
-            {/* Settings */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_featured"
-                  checked={formData.is_featured}
-                  onCheckedChange={(checked) => handleSwitchChange("is_featured", checked)}
-                />
-                <Label htmlFor="is_featured">Featured Product</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="is_seasonal"
-                  checked={formData.is_seasonal}
-                  onCheckedChange={(checked) => handleSwitchChange("is_seasonal", checked)}
-                />
-                <Label htmlFor="is_seasonal">Seasonal Product</Label>
-              </div>
+              <p className="text-sm text-gray-500">Recommended: 800x800px or larger, JPG or PNG format</p>
             </div>
           </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button variant="outline" type="button" onClick={() => router.push("/farmer/products")}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting} className="flex items-center gap-2">
+              <Save className="h-4 w-4" />
+              {isSubmitting ? "Saving..." : "Save Product"}
+            </Button>
+          </CardFooter>
         </Card>
-
-        {/* Form Actions */}
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => router.back()}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Adding...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Add Product
-              </>
-            )}
-          </Button>
-        </div>
       </form>
     </div>
   )

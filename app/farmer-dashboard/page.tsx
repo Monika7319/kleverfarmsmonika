@@ -1,422 +1,316 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/hooks/use-toast"
-import { authHeaders, API_BASE_URL, formatCurrency } from "@/lib/utils"
-import { Plus, Package, CheckCircle, Clock, User, MapPin, Phone, Mail, Loader2, ExternalLink } from "lucide-react"
+import { ArrowUpRight, Package, ShoppingBag, Users, DollarSign, TrendingUp, AlertCircle } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
 
-interface FarmerProfile {
+interface FarmData {
   id: number
-  name: string
+  farmName: string
+  ownerName: string
   email: string
   phone: string
-  farm: {
-    id: number
-    name: string
-    address: string
-    city: string
-    state: string
-    is_verified: boolean
-  }
-}
-
-interface Product {
-  id: number
-  name: string
-  category: string
-  price: number
-  unit: string
-  description: string | null
-  stock: number
-  image: string | null
-  is_approved: boolean
+  address: string
+  city: string
+  state: string
+  zip: string
+  farmSize: string
+  farmType: string
+  description: string
+  farmingMethods: string[]
+  specialties: string[]
+  images: string[]
+  latitude: string
+  longitude: string
+  is_verified: number
   is_active: boolean
-  created_at: string
 }
 
 export default function FarmerDashboardPage() {
-  const [farmer, setFarmer] = useState<FarmerProfile | null>(null)
-  const [products, setProducts] = useState<Product[]>([])
+  const [farm, setFarm] = useState<FarmData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { toast } = useToast()
 
   useEffect(() => {
-    fetchDashboardData()
+    const token = localStorage.getItem("farm_token")
+    if (!token) {
+      setError("Not logged in. Please log in again.")
+      setLoading(false)
+      return
+    }
+
+    fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"}/api/farmer/dashboard`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.message || `HTTP ${res.status}`)
+        }
+        return res.json()
+      })
+      .then((data) => {
+        setFarm(data.farm)
+        setLoading(false)
+      })
+      .catch((err) => {
+        console.error("Dashboard fetch error:", err)
+        setError("Failed to load dashboard data. " + err.message)
+        setLoading(false)
+      })
   }, [])
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-
-      // Fetch farmer profile and products
-      const [profileRes, productsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/farmer/dashboard`, { headers: authHeaders() }),
-        fetch(`${API_BASE_URL}/api/farmer/products`, { headers: authHeaders() }),
-      ])
-
-      // Check for authentication errors
-      if (profileRes.status === 401 || productsRes.status === 401) {
-        window.location.href = "/login"
-        return
-      }
-
-      // Handle profile response
-      if (profileRes.ok) {
-        const profileData = await profileRes.json()
-        if (profileData.success) {
-          setFarmer({
-            id: profileData.user.id,
-            name: profileData.user.name,
-            email: profileData.user.email,
-            phone: profileData.user.phone || "Not provided",
-            farm: profileData.farm,
-          })
-        }
-      }
-
-      // Handle products response
-      if (productsRes.ok) {
-        const productsData = await productsRes.json()
-        if (productsData.success) {
-          setProducts(productsData.products || [])
-        }
-      }
-
-      // If any request failed, show error but don't break the page
-      if (!profileRes.ok || !productsRes.ok) {
-        throw new Error("Some data could not be loaded")
-      }
-    } catch (error: any) {
-      console.error("Dashboard fetch error:", error)
-      setError(error.message)
-      toast({
-        title: "Error loading dashboard",
-        description: "Some data may not be available. Please refresh the page.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const getApprovalBadge = (isApproved: boolean) => {
-    if (isApproved) {
-      return (
-        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-          <CheckCircle className="w-3 h-3 mr-1" />
-          Approved
-        </Badge>
-      )
-    } else {
-      return (
-        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-          <Clock className="w-3 h-3 mr-1" />
-          Pending Approval
-        </Badge>
-      )
-    }
-  }
-
-  const approvedProducts = products.filter((p) => p.is_approved)
-  const pendingProducts = products.filter((p) => !p.is_approved)
-  const totalStockValue = products.reduce((total, product) => total + product.price * product.stock, 0)
-
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      </div>
-    )
+    return <div className="p-6 text-center">Loading your farm data…</div>
+  }
+
+  if (error) {
+    return <div className="p-6 text-red-500">{error}</div>
+  }
+
+  if (!farm) {
+    return <div className="p-6">No farm data found.</div>
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's an overview of your farm's performance.</p>
+          <h2 className="text-3xl font-bold tracking-tight">Farmer Dashboard</h2>
+          <p className="text-muted-foreground">
+            Welcome back, {farm.ownerName}! Here's an overview of <strong>{farm.farmName}</strong>.
+          </p>
         </div>
-        <div className="flex gap-2 mt-4 md:mt-0">
-          <Button variant="outline">
-            <ExternalLink className="mr-2 h-4 w-4" />
-            View Farm Page
+        <div className="mt-4 md:mt-0 flex space-x-2">
+          <Button variant="outline">Download Reports</Button>
+          <Button>
+            View Farm Page <ArrowUpRight className="ml-2 h-4 w-4" />
           </Button>
-          <Link href="/farmer-dashboard/products/new">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Product
-            </Button>
-          </Link>
         </div>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 text-orange-800">
-              <Package className="h-4 w-4" />
-              <span className="font-medium">Notice:</span>
-              <span>{error}</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Farmer Profile Card */}
-      {farmer && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Farmer Profile
-              {farmer.farm?.is_verified && (
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  Verified
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Name</p>
-                  <p className="text-lg">{farmer.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Farm Name</p>
-                  <p className="text-lg">{farmer.farm?.name || "Not provided"}</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <span>{farmer.email}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-gray-500" />
-                  <span>{farmer.phone}</span>
-                </div>
-                {farmer.farm && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-gray-500" />
-                    <span>
-                      {farmer.farm.address}, {farmer.farm.city}, {farmer.farm.state}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats Cards */}
+      {/* Example cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">₹45,231.89</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-500">+20.1%</span> from last month
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Products</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{products.length}</div>
-            <p className="text-xs text-muted-foreground">All your products</p>
+            <div className="text-2xl font-bold">12</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-500">+4</span> new this month
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Approved Products</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+            <CardTitle className="text-sm font-medium">Orders</CardTitle>
+            <ShoppingBag className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{approvedProducts.length}</div>
-            <p className="text-xs text-muted-foreground">Ready for sale</p>
+            <div className="text-2xl font-bold">24</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-amber-500">5</span> pending
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
+            <CardTitle className="text-sm font-medium">Customers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{pendingProducts.length}</div>
-            <p className="text-xs text-muted-foreground">Awaiting admin review</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Stock Value</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totalStockValue)}</div>
-            <p className="text-xs text-muted-foreground">Current inventory value</p>
+            <div className="text-2xl font-bold">18</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="text-green-500">+3</span> new this month
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Products Sections */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Approved Products */}
-        <Card>
+      {/* Sales Overview & Recent Orders (optional) */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              Approved Products
-            </CardTitle>
-            <CardDescription>Products approved by admin and available for sale</CardDescription>
+            <CardTitle>Sales Overview</CardTitle>
+            <CardDescription>Your farm's sales performance</CardDescription>
           </CardHeader>
-          <CardContent>
-            {approvedProducts.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No approved products yet</p>
-            ) : (
-              <div className="space-y-4">
-                {approvedProducts.slice(0, 3).map((product) => (
-                  <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
-                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                      <Image
-                        src={product.image || "/placeholder.svg?height=48&width=48"}
-                        alt={product.name}
-                        width={48}
-                        height={48}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{product.name}</p>
-                      <p className="text-sm text-gray-500">{product.category}</p>
-                      <p className="text-sm font-medium text-green-600">
-                        {formatCurrency(product.price)}/{product.unit}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      {getApprovalBadge(product.is_approved)}
-                      <p className="text-xs text-gray-500 mt-1">Stock: {product.stock}</p>
-                    </div>
-                  </div>
-                ))}
-                {approvedProducts.length > 3 && (
-                  <Link href="/farmer-dashboard/products?tab=approved">
-                    <Button variant="outline" className="w-full">
-                      View All Approved Products ({approvedProducts.length})
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            )}
+          <CardContent className="pl-2">
+            <div className="h-[300px] w-full bg-gray-100 rounded-md flex items-center justify-center">
+              <TrendingUp className="h-16 w-16 text-gray-400" />
+              <span className="ml-2 text-gray-500">Chart placeholder</span>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Pending Products */}
-        <Card>
+        <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-yellow-600" />
-              Pending Approval
-            </CardTitle>
-            <CardDescription>Products waiting for admin approval</CardDescription>
+            <CardTitle>Recent Orders</CardTitle>
+            <CardDescription>Your most recent orders</CardDescription>
           </CardHeader>
           <CardContent>
-            {pendingProducts.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No products pending approval</p>
-            ) : (
-              <div className="space-y-4">
-                {pendingProducts.slice(0, 3).map((product) => (
-                  <div key={product.id} className="flex items-center gap-4 p-3 border rounded-lg">
-                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                      <Image
-                        src={product.image || "/placeholder.svg?height=48&width=48"}
-                        alt={product.name}
-                        width={48}
-                        height={48}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{product.name}</p>
-                      <p className="text-sm text-gray-500">{product.category}</p>
-                      <p className="text-sm font-medium text-green-600">
-                        {formatCurrency(product.price)}/{product.unit}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      {getApprovalBadge(product.is_approved)}
-                      <p className="text-xs text-gray-500 mt-1">Stock: {product.stock}</p>
-                    </div>
+            <div className="space-y-4">
+              {[
+                {
+                  id: "ORD-001",
+                  customer: "Rahul Sharma",
+                  date: "2023-05-15",
+                  status: "delivered",
+                  total: "₹1,249.95",
+                },
+                { id: "ORD-002", customer: "Priya Patel", date: "2023-05-18", status: "processing", total: "₹839.97" },
+                { id: "ORD-003", customer: "Amit Desai", date: "2023-05-20", status: "shipped", total: "₹1,199.97" },
+              ].map((order) => (
+                <div key={order.id} className="flex items-center justify-between border-b pb-2">
+                  <div>
+                    <p className="font-medium">{order.id}</p>
+                    <p className="text-sm text-gray-500">{order.customer}</p>
                   </div>
-                ))}
-                {pendingProducts.length > 3 && (
-                  <Link href="/farmer-dashboard/products?tab=pending">
-                    <Button variant="outline" className="w-full">
-                      View All Pending Products ({pendingProducts.length})
-                    </Button>
-                  </Link>
-                )}
-              </div>
-            )}
+                  <div className="text-right">
+                    <p className="font-medium">{order.total}</p>
+                    <p className="text-sm text-gray-500">{order.date}</p>
+                  </div>
+                </div>
+              ))}
+              <Button variant="outline" className="w-full mt-2">
+                View All Orders
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common tasks you might want to perform</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link href="/farmer-dashboard/products/new">
-              <Button className="w-full justify-start h-auto p-4" variant="outline">
-                <div className="flex flex-col items-start gap-2">
-                  <Plus className="h-5 w-5" />
-                  <div>
-                    <p className="font-medium">Add New Product</p>
-                    <p className="text-xs text-gray-500">Create a new product listing</p>
+      {/* Top Selling & Inventory Alerts (optional) */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Selling Products</CardTitle>
+            <CardDescription>Best performers this month</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[
+                { name: "Organic Ghee", sales: 42, revenue: "₹20,999.58" },
+                { name: "Shrikhand", sales: 38, revenue: "₹9,499.62" },
+                { name: "Amarkhand", sales: 31, revenue: "₹8,679.69" },
+              ].map((product, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center">
+                      <Package className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{product.name}</p>
+                      <p className="text-sm text-gray-500">{product.sales} sold</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{product.revenue}</p>
                   </div>
                 </div>
-              </Button>
-            </Link>
-            <Link href="/farmer-dashboard/products">
-              <Button className="w-full justify-start h-auto p-4" variant="outline">
-                <div className="flex flex-col items-start gap-2">
-                  <Package className="h-5 w-5" />
-                  <div>
-                    <p className="font-medium">Manage Products</p>
-                    <p className="text-xs text-gray-500">View and edit your products</p>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Inventory Alerts</CardTitle>
+            <CardDescription>Products needing restock</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[
+                { name: "Organic Ghee", stock: 5, status: "low" },
+                { name: "Paneer", stock: 8, status: "low" },
+                { name: "Amarkhand", stock: 0, status: "out" },
+              ].map((product, i) => (
+                <div key={i} className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className={`w-10 h-10 rounded flex items-center justify-center ${product.status === "out" ? "bg-red-100" : "bg-amber-100"}`}
+                    >
+                      <AlertCircle
+                        className={`h-5 w-5 ${product.status === "out" ? "text-red-600" : "text-amber-600"}`}
+                      />
+                    </div>
+                    <div>
+                      <p className="font-medium">{product.name}</p>
+                      <p className={`text-sm ${product.status === "out" ? "text-red-500" : "text-amber-500"}`}>
+                        {product.status === "out" ? "Out of stock" : `Low stock: ${product.stock} left`}
+                      </p>
+                    </div>
                   </div>
+                  <Button size="sm" variant="outline">
+                    Restock
+                  </Button>
                 </div>
+              ))}
+              <Button variant="outline" className="w-full mt-2">
+                View All Inventory
               </Button>
-            </Link>
-            <Link href="/farmer-dashboard/profile">
-              <Button className="w-full justify-start h-auto p-4" variant="outline">
-                <div className="flex flex-col items-start gap-2">
-                  <User className="h-5 w-5" />
-                  <div>
-                    <p className="font-medium">Update Profile</p>
-                    <p className="text-xs text-gray-500">Edit your farm information</p>
-                  </div>
-                </div>
-              </Button>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Common tasks</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Link href="/farmer/products/new">
+                <Button className="w-full justify-start" variant="outline">
+                  Add New Product
+                </Button>
+              </Link>
+              <Link href="/farmer/orders">
+                <Button className="w-full justify-start" variant="outline">
+                  Process Orders
+                </Button>
+              </Link>
+              <Link href="/farmer/profile">
+                <Button className="w-full justify-start" variant="outline">
+                  Update Farm Profile
+                </Button>
+              </Link>
+              <Link href="/farmer/media">
+                <Button className="w-full justify-start" variant="outline">
+                  Upload Photos
+                </Button>
+              </Link>
+              <Link href="/farmer/analytics">
+                <Button className="w-full justify-start" variant="outline">
+                  View Analytics
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
