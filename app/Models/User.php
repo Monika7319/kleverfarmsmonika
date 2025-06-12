@@ -16,7 +16,7 @@ class User extends Authenticatable
         'email',
         'password',
         'phone',
-        'role',
+        'address',
         'is_active',
     ];
 
@@ -30,31 +30,13 @@ class User extends Authenticatable
         'is_active' => 'boolean',
     ];
 
-    // Relationships
-    public function farm()
+    public function orders()
     {
-        return $this->hasOne(Farm::class);
+        return $this->hasMany(Order::class);
     }
 
-    // Scopes
-    public function scopeFarmers($query)
+    public function wishlistItems()
     {
-        return $query->where('role', 'farmer');
-    }
-
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
-    }
-
-    // Helper methods
-    public function isFarmer()
-    {
-        return $this->role === 'farmer';
-    }
-
-    public function isAdmin()
-    {
-        return $this->role === 'admin';
+        return $this->hasMany(WishlistItem::class);
     }
 }

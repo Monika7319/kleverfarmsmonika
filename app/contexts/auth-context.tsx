@@ -1,27 +1,23 @@
 "use client"
 
-import type React from "react"
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 
-interface Customer {
+interface User {
   id: number
   name: string
   email: string
-  phone?: string
-  address?: string
-  city?: string
-  state?: string
-  zip_code?: string
+  phone: string | null
+  address: string | null
 }
 
 interface AuthContextType {
-  customer: Customer | null
+  user: User | null
   token: string | null
+  loading: boolean
   login: (email: string, password: string) => Promise<void>
   register: (data: RegisterData) => Promise<void>
-  logout: () => void
-  updateProfile: (data: Partial<Customer>) => Promise<void>
-  loading: boolean
+  logout: () => Promise<void>
+  updateProfile: (data: UpdateProfileData) => Promise<void>
 }
 
 interface RegisterData {
@@ -31,9 +27,12 @@ interface RegisterData {
   password_confirmation: string
   phone?: string
   address?: string
-  city?: string
-  state?: string
-  zip_code?: string
+}
+
+interface UpdateProfileData {
+  name: string
+  phone?: string
+  address?: string
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -46,45 +45,46 @@ export function useAuth() {
   return context
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000"
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [customer, setCustomer] = useState<Customer | null>(null)
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("customer_token")
+    const storedToken = localStorage.getItem("auth_token")
     if (storedToken) {
       setToken(storedToken)
-      fetchProfile(storedToken)
+      fetchUserProfile(storedToken)
     } else {
       setLoading(false)
     }
   }, [])
 
-  const fetchProfile = async (authToken: string) => {
+  const fetchUserProfile = async (authToken: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/customer/profile`, {
+      const response = await fetch(`${API_URL}/profile`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
-          Accept: "application/json",
         },
       })
 
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          setCustomer(data.customer)
+          setUser(data.user)
+        } else {
+          localStorage.removeItem("auth_token")
+          setToken(null)
         }
       } else {
-        // Token is invalid, clear it
-        localStorage.removeItem("customer_token")
+        localStorage.removeItem("auth_token")
         setToken(null)
       }
     } catch (error) {
-      console.error("Failed to fetch profile:", error)
-      localStorage.removeItem("customer_token")
+      console.error("Failed to fetch user profile:", error)
+      localStorage.removeItem("auth_token")
       setToken(null)
     } finally {
       setLoading(false)
@@ -92,11 +92,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const login = async (email: string, password: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/customer/login`, {
+    const response = await fetch(`${API_URL}/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
       },
       body: JSON.stringify({ email, password }),
     })
@@ -107,21 +106,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.message || "Login failed")
     }
 
-    if (data.success) {
-      setToken(data.token)
-      setCustomer(data.customer)
-      localStorage.setItem("customer_token", data.token)
-    } else {
-      throw new Error(data.message || "Login failed")
-    }
+    setUser(data.user)
+    setToken(data.token)
+    localStorage.setItem("auth_token", data.token)
   }
 
   const register = async (registerData: RegisterData) => {
-    const response = await fetch(`${API_BASE_URL}/api/customer/register`, {
+    const response = await fetch(`${API_URL}/register`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
       },
       body: JSON.stringify(registerData),
     })
@@ -132,23 +126,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.message || "Registration failed")
     }
 
-    if (data.success) {
-      setToken(data.token)
-      setCustomer(data.customer)
-      localStorage.setItem("customer_token", data.token)
-    } else {
-      throw new Error(data.message || "Registration failed")
-    }
+    setUser(data.user)
+    setToken(data.token)
+    localStorage.setItem("auth_token", data.token)
   }
 
   const logout = async () => {
     if (token) {
       try {
-        await fetch(`${API_BASE_URL}/api/customer/logout`, {
+        await fetch(`${API_URL}/logout`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
-            Accept: "application/json",
           },
         })
       } catch (error) {
@@ -156,20 +145,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    setCustomer(null)
+    setUser(null)
     setToken(null)
-    localStorage.removeItem("customer_token")
+    localStorage.removeItem("auth_token")
   }
 
-  const updateProfile = async (profileData: Partial<Customer>) => {
+  const updateProfile = async (profileData: UpdateProfileData) => {
     if (!token) throw new Error("Not authenticated")
 
-    const response = await fetch(`${API_BASE_URL}/api/customer/profile`, {
+    const response = await fetch(`${API_URL}/profile`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
-        Accept: "application/json",
       },
       body: JSON.stringify(profileData),
     })
@@ -180,22 +168,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(data.message || "Profile update failed")
     }
 
-    if (data.success) {
-      setCustomer(data.customer)
-    } else {
-      throw new Error(data.message || "Profile update failed")
-    }
+    setUser(data.user)
   }
 
-  const value = {
-    customer,
-    token,
-    login,
-    register,
-    logout,
-    updateProfile,
-    loading,
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        register,
+        logout,
+        updateProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
 }
