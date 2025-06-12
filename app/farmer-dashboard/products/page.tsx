@@ -26,6 +26,7 @@ interface Product {
   description: string | null
   stock: number
   image: string | null
+  image_url: string | null
   is_featured: boolean
   is_seasonal: boolean
   is_approved: boolean
@@ -275,7 +276,7 @@ export default function ProductsPage() {
             <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="aspect-square relative overflow-hidden bg-gray-100">
                 <Image
-                  src={product.image || "/placeholder.svg?height=400&width=400"}
+                  src={product.image_url || "/placeholder.svg?height=400&width=400"}
                   alt={product.name}
                   fill
                   className="object-cover"

@@ -63,6 +63,16 @@ class FarmerProductController extends Controller
 
             $products = $query->get();
 
+            // Add full image URLs
+            $products->transform(function ($product) {
+                if ($product->image) {
+                    $product->image_url = asset('products/images/' . $product->image);
+                } else {
+                    $product->image_url = null;
+                }
+                return $product;
+            });
+
             return response()->json([
                 'success' => true,
                 'products' => $products,
@@ -96,7 +106,7 @@ class FarmerProductController extends Controller
                 'description' => 'nullable|string',
                 'is_featured' => 'nullable|boolean',
                 'is_seasonal' => 'nullable|boolean',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // 5MB max
             ]);
 
             if ($validator->fails()) {
@@ -141,6 +151,11 @@ class FarmerProductController extends Controller
 
             $product = Product::create($data);
 
+            // Add image URL to response
+            if ($product->image) {
+                $product->image_url = asset('products/images/' . $product->image);
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Product created successfully',
@@ -172,6 +187,11 @@ class FarmerProductController extends Controller
                     'success' => false,
                     'message' => 'Product not found.',
                 ], 404);
+            }
+
+            // Add image URL
+            if ($product->image) {
+                $product->image_url = asset('products/images/' . $product->image);
             }
 
             return response()->json([
@@ -214,7 +234,7 @@ class FarmerProductController extends Controller
                 'description' => 'nullable|string',
                 'is_featured' => 'nullable|boolean',
                 'is_seasonal' => 'nullable|boolean',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
             ]);
 
             if ($validator->fails()) {
@@ -251,11 +271,17 @@ class FarmerProductController extends Controller
             }
 
             $product->update($data);
+            $product = $product->fresh();
+
+            // Add image URL
+            if ($product->image) {
+                $product->image_url = asset('products/images/' . $product->image);
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'Product updated successfully',
-                'product' => $product->fresh(),
+                'product' => $product,
             ]);
 
         } catch (\Exception $e) {
@@ -325,6 +351,14 @@ class FarmerProductController extends Controller
                 ->where('stock', '<=', $threshold)
                 ->orderBy('stock', 'asc')
                 ->get();
+
+            // Add image URLs
+            $products->transform(function ($product) {
+                if ($product->image) {
+                    $product->image_url = asset('products/images/' . $product->image);
+                }
+                return $product;
+            });
 
             return response()->json([
                 'success' => true,

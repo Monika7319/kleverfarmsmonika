@@ -2,28 +2,29 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Str;
 
 class Farm extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, Notifiable;
 
     protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'phone',
-        'address',
-        'city',
-        'state',
-        'postal_code',
-        'latitude',
-        'longitude',
-        'is_verified',
-        'is_active',
+        'farmName', 'ownerName', 'description', 'farmSize', 'farmType',
+        'farmingMethods', 'specialties', 'images', 'acceptTerms', 'address', 'city',
+        'state', 'zip', 'latitude', 'longitude', 'phone', 'email', 'password',
+        'is_verified', 'is_active', 'slug'
+    ];
+
+    protected $casts = [
+        'farmingMethods' => 'array',
+        'specialties'    => 'array',
+        'images'         => 'array',
+        'acceptTerms'    => 'boolean',
+        'is_verified'    => 'integer',
+        'is_active'      => 'boolean',
     ];
 
     protected $hidden = [
@@ -31,32 +32,36 @@ class Farm extends Authenticatable
         'remember_token',
     ];
 
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-        'is_verified' => 'boolean',
-        'is_active' => 'boolean',
-        'latitude' => 'decimal:8',
-        'longitude' => 'decimal:8',
-    ];
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($farm) {
+            if (empty($farm->slug)) {
+                $source = trim("{$farm->farmName} in {$farm->city} {$farm->state}");
+                $farm->slug = Str::slug($source) ?: Str::uuid();
+            }
+        });
+
+        static::updating(function ($farm) {
+            if ($farm->isDirty(['farmName', 'city', 'state'])) {
+                $source = trim("{$farm->farmName} in {$farm->city} {$farm->state}");
+                $newSlug = Str::slug($source) ?: Str::uuid();
+
+                if ($farm->slug !== $newSlug) {
+                    $farm->slug = $newSlug;
+                }
+            }
+        });
+    }
 
     public function products()
     {
-        return $this->hasMany(Product::class);
+        return $this->hasMany(Product::class, 'farm_id');
     }
 
     public function orders()
     {
-        return $this->hasMany(Order::class);
-    }
-
-    public function approvedProducts()
-    {
-        return $this->products()->where('is_approved', true)->where('is_active', true);
-    }
-
-    public function pendingProducts()
-    {
-        return $this->products()->where('is_approved', false)->where('is_active', true);
+        return $this->hasMany(Order::class, 'farm_id');
     }
 }
