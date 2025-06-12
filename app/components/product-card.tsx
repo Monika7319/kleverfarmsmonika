@@ -16,13 +16,34 @@ export function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
   // Calculate discounted price
   const discountedPrice = product.discount > 0 ? product.price - (product.price * product.discount) / 100 : null
 
+  // Handle image URL - support both local and remote images
+  const getImageUrl = (imagePath: string | null) => {
+    if (!imagePath) return "/placeholder.svg?height=400&width=400"
+
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith("http")) return imagePath
+
+    // If it starts with /storage/, it's a Laravel storage path
+    if (imagePath.startsWith("/storage/")) return `${process.env.NEXT_PUBLIC_API_BASE_URL}${imagePath}`
+
+    // If it's just a filename, construct the full path
+    if (!imagePath.startsWith("/")) return `${process.env.NEXT_PUBLIC_API_BASE_URL}/storage/products/${imagePath}`
+
+    return imagePath
+  }
+
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
       <div className="aspect-square relative overflow-hidden bg-gray-100">
         <img
-          src={product.image || "/placeholder.svg?height=400&width=400"}
+          src={getImageUrl(product.image) || "/placeholder.svg"}
           alt={product.name}
           className="w-full h-full object-cover"
+          onError={(e) => {
+            // Fallback to placeholder if image fails to load
+            const target = e.target as HTMLImageElement
+            target.src = "/placeholder.svg?height=400&width=400"
+          }}
         />
         <div className="absolute top-2 left-2 flex flex-wrap gap-1">
           {product.is_featured && (

@@ -82,13 +82,12 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
       return
     }
 
-    // Store the file for later submission
+    // Store the actual file for upload
     setImageFile(file)
 
     // Create a preview URL
     const imageUrl = URL.createObjectURL(file)
     setPreviewUrl(imageUrl)
-    setFormData((prev) => ({ ...prev, image: imageUrl }))
 
     // Clear error when file is selected
     if (errors.image) {
@@ -153,27 +152,24 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
     setIsSubmitting(true)
 
     try {
-      const productData: Partial<Product> = {
-        name: formData.name,
-        category: formData.category,
-        price: Number(formData.price),
-        unit: formData.unit,
-        discount: Number(formData.discount || 0),
-        description: formData.description || null,
-        stock: Number(formData.stock || 0),
-        is_featured: formData.is_featured,
-        is_seasonal: formData.is_seasonal,
-      }
+      // Create FormData for file upload
+      const formData = new FormData()
+      formData.append("name", formData.name)
+      formData.append("category", formData.category)
+      formData.append("price", formData.price)
+      formData.append("unit", formData.unit)
+      formData.append("discount", formData.discount || "0")
+      formData.append("description", formData.description || "")
+      formData.append("stock", formData.stock || "0")
+      formData.append("is_featured", String(formData.is_featured))
+      formData.append("is_seasonal", String(formData.is_seasonal))
 
-      // Handle image - in a real app, you would upload the file to your server
+      // Add image file if selected
       if (imageFile) {
-        // For now, we'll use the preview URL
-        productData.image = previewUrl
-      } else if (formData.image) {
-        productData.image = formData.image
+        formData.append("image", imageFile)
       }
 
-      await onSubmit(productData)
+      await onSubmit(formData as any)
     } catch (error) {
       console.error("Error submitting form:", error)
     } finally {

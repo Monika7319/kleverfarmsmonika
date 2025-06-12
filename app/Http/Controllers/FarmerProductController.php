@@ -96,7 +96,7 @@ class FarmerProductController extends Controller
                 'description' => 'nullable|string',
                 'is_featured' => 'nullable|boolean',
                 'is_seasonal' => 'nullable|boolean',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120', // 5MB max
             ]);
 
             if ($validator->fails()) {
@@ -118,24 +118,21 @@ class FarmerProductController extends Controller
                 'description' => $request->description,
                 'is_featured' => filter_var($request->is_featured ?? false, FILTER_VALIDATE_BOOLEAN),
                 'is_seasonal' => filter_var($request->is_seasonal ?? false, FILTER_VALIDATE_BOOLEAN),
-                'is_approved' => $farm->is_verified ? true : false, // Auto-approve if farm is verified
+                'is_approved' => $farm->is_verified ? true : false,
                 'is_active' => true,
             ];
 
             // Handle image upload
             if ($request->hasFile('image')) {
                 $image = $request->file('image');
-                $farmSlug = str_replace(' ', '_', strtolower($farm->farmName ?? 'farm'));
-                $filename = $farmSlug . '_product_' . time() . '.' . $image->getClientOriginalExtension();
                 
-                // Create directory if it doesn't exist
-                $uploadPath = public_path('products/images');
-                if (!file_exists($uploadPath)) {
-                    mkdir($uploadPath, 0755, true);
-                }
+                // Create a unique filename
+                $filename = time() . '_' . uniqid() . '.' . $image->getClientOriginalExtension();
                 
-                // Store in public/products/images directory
-                $image->move($uploadPath, $filename);
+                // Store in storage/app/public/products directory
+                $path = $image->storeAs('products', $filename, 'public');
+                
+                // Store the path in database
                 $data['image'] = $filename;
             }
 

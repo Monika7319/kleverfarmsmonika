@@ -13,7 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDebounce } from "@/app/hooks/use-debounce"
 import Link from "next/link"
-import Image from "next/image"
 
 interface Product {
   id: number
@@ -32,6 +31,22 @@ interface Product {
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+// Add this helper function at the top of the component
+const getImageUrl = (imagePath: string | null) => {
+  if (!imagePath) return "/placeholder.svg?height=400&width=400"
+
+  // If it's already a full URL, return as is
+  if (imagePath.startsWith("http")) return imagePath
+
+  // If it starts with /storage/, it's a Laravel storage path
+  if (imagePath.startsWith("/storage/")) return `${API_BASE_URL}${imagePath}`
+
+  // If it's just a filename, construct the full path
+  if (!imagePath.startsWith("/")) return `${API_BASE_URL}/storage/products/${imagePath}`
+
+  return imagePath
 }
 
 export default function ProductsPage() {
@@ -274,11 +289,14 @@ export default function ProductsPage() {
           {filteredProducts.map((product) => (
             <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="aspect-square relative overflow-hidden bg-gray-100">
-                <Image
-                  src={product.image || "/placeholder.svg?height=400&width=400"}
+                <img
+                  src={getImageUrl(product.image) || "/placeholder.svg"}
                   alt={product.name}
-                  fill
-                  className="object-cover"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.src = "/placeholder.svg?height=400&width=400"
+                  }}
                 />
                 <div className="absolute top-2 right-2">{getApprovalBadge(product.is_approved)}</div>
               </div>
