@@ -46,7 +46,7 @@ interface Product {
   description: string | null
   stock: number
   image: string | null
-  image_url?: string
+  image_url: string | null
   is_approved: boolean
   is_active: boolean
   created_at: string
@@ -178,7 +178,7 @@ export default function FarmerDashboardPage() {
 
   const getImageUrl = (product: Product) => {
     if (product.image_url) return product.image_url
-    if (product.image) return `${API_BASE_URL}/products/images/${product.image}`
+    if (product.image) return `${API_BASE_URL}/storage/products/${product.image}`
     return "/placeholder.svg?height=48&width=48"
   }
 
@@ -203,7 +203,9 @@ export default function FarmerDashboardPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's an overview of your farm's performance.</p>
+          <p className="text-muted-foreground">
+            Welcome back, {farmer?.name}! Here's an overview of your farm's performance.
+          </p>
         </div>
         <div className="flex gap-2 mt-4 md:mt-0">
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
@@ -474,17 +476,15 @@ export default function FarmerDashboardPage() {
                 </div>
               </Button>
             </Link>
-            <Link href="/farmer-dashboard/profile">
-              <Button className="w-full justify-start h-auto p-4" variant="outline">
-                <div className="flex flex-col items-start gap-2">
-                  <User className="h-5 w-5" />
-                  <div>
-                    <p className="font-medium">Update Profile</p>
-                    <p className="text-xs text-gray-500">Edit your farm information</p>
-                  </div>
+            <Button className="w-full justify-start h-auto p-4" variant="outline" onClick={handleRefresh}>
+              <div className="flex flex-col items-start gap-2">
+                <RefreshCw className="h-5 w-5" />
+                <div>
+                  <p className="font-medium">Refresh Data</p>
+                  <p className="text-xs text-gray-500">Update dashboard information</p>
                 </div>
-              </Button>
-            </Link>
+              </div>
+            </Button>
           </div>
         </CardContent>
       </Card>

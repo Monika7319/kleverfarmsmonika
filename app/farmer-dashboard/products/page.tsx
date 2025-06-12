@@ -26,7 +26,7 @@ interface Product {
   description: string | null
   stock: number
   image: string | null
-  image_url?: string
+  image_url: string | null
   is_featured: boolean
   is_seasonal: boolean
   is_approved: boolean
@@ -202,7 +202,7 @@ export default function ProductsPage() {
 
   const getImageUrl = (product: Product) => {
     if (product.image_url) return product.image_url
-    if (product.image) return `${API_BASE_URL}/products/images/${product.image}`
+    if (product.image) return `${API_BASE_URL}/storage/products/${product.image}`
     return "/placeholder.svg?height=400&width=400"
   }
 

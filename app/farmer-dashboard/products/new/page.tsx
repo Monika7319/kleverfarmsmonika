@@ -37,7 +37,7 @@ export default function NewProductPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
-    category: "Vegetables",
+    category: "Dairy",
     price: "",
     unit: "",
     discount: "0",
@@ -161,29 +161,21 @@ export default function NewProductPage() {
       form.append("discount", formData.discount)
       form.append("stock", formData.stock)
       form.append("description", formData.description)
-      form.append("is_featured", String(formData.is_featured))
-      form.append("is_seasonal", String(formData.is_seasonal))
+      form.append("is_featured", String(formData.is_featured ? 1 : 0))
+      form.append("is_seasonal", String(formData.is_seasonal ? 1 : 0))
 
       // Add image if selected
       if (image) {
         form.append("image", image)
       }
 
-      console.log("Submitting product data:", {
-        name: formData.name,
-        category: formData.category,
-        price: formData.price,
-        unit: formData.unit,
-        hasImage: !!image,
-      })
+      console.log("Submitting product data to API...")
 
       const response = await fetch(`${API_BASE_URL}/api/farmer/products`, {
         method: "POST",
         headers: authHeadersFormData(),
         body: form,
       })
-
-      console.log("Response status:", response.status)
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -196,17 +188,16 @@ export default function NewProductPage() {
           return
         }
 
-        const errorData = await response.json()
-        console.error("Error response:", errorData)
+        const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.message || `HTTP error ${response.status}`)
       }
 
       const data = await response.json()
-      console.log("Success response:", data)
+      console.log("Product added successfully:", data)
 
       toast({
         title: "Product Added Successfully!",
-        description: `${data.product.name} has been added to your inventory.`,
+        description: `${formData.name} has been added to your inventory.`,
       })
 
       // Redirect to products page to see the new product
