@@ -32,6 +32,7 @@ export default function WishlistPage() {
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/wishlist`, {
           headers: {
             Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
         })
 
@@ -65,6 +66,7 @@ export default function WishlistPage() {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
+          Accept: "application/json",
         },
       })
 

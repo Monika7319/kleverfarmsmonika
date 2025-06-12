@@ -67,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await fetch(`${API_URL}/profile`, {
         headers: {
           Authorization: `Bearer ${authToken}`,
+          Accept: "application/json",
         },
       })
 
@@ -96,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({ email, password }),
     })
@@ -116,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify(registerData),
     })
@@ -138,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
+            Accept: "application/json",
           },
         })
       } catch (error) {
@@ -158,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        Accept: "application/json",
       },
       body: JSON.stringify(profileData),
     })
